@@ -17,6 +17,7 @@ quietly rewrite the README.
 | `latency.json` | `make bench` | the latency table in results.md |
 | `loop.json` | `make demo` | the drift, recovery and gate tables |
 | `quantisation_ablation.json` | `make ablate` | the quantisation table |
+| `retrain_seed_sweep.json` | `make seed-sweep` | the reproducibility table in ci.md |
 
 Every file records the host, the configuration and the inputs it came from, so a
 number here can be traced back to the run that produced it without consulting

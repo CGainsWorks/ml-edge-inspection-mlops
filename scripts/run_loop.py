@@ -132,7 +132,7 @@ def main(argv=None) -> int:
     clean_frames = args.clean_frames or (320 if args.quick else 900)
     drift_frames = args.drift_frames or (420 if args.quick else 1200)
     steady_frames = args.steady_frames or (300 if args.quick else 600)
-    retrain_epochs = args.retrain_epochs or (10 if args.quick else 14)
+    retrain_epochs = args.retrain_epochs or (24 if args.quick else 14)
 
     prefix = args.model_prefix
     required = [prefix + "_fp32.onnx", prefix + "_int8.onnx", prefix + ".pt"]

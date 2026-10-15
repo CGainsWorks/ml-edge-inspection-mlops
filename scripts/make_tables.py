@@ -146,6 +146,36 @@ def quantisation_table(payload: dict) -> str:
     return _rows(header, rows, align="llrr") + "\n\n" + payload.get("conclusion", "")
 
 
+@table("seed_sweep", "retrain_seed_sweep.json")
+def seed_sweep_table(payload: dict) -> str:
+    """How reproducible the retraining step is, across seeds."""
+    header = ["seed", "reference holdout", "drifted holdout", "gate",
+              "failed check"]
+    rows = []
+    for run in payload["runs"]:
+        if run.get("reference_auroc") is None:
+            rows.append([run["seed"], "--", "--", "crash",
+                         str(run.get("error", ""))[:40]])
+            continue
+        rows.append([
+            run["seed"],
+            _f(run["reference_auroc"]),
+            _f(run["drift_auroc"]),
+            (run.get("decision") or "?"),
+            ", ".join("`" + m + "`" for m in run.get("failed_checks", []))
+            or "--",
+        ])
+    incumbent = payload.get("incumbent", {})
+    note = "Against an incumbent at {0} reference and {1} drifted.  {2}".format(
+        _f(incumbent.get("reference_auroc")), _f(incumbent.get("drift_auroc")),
+        payload.get("summary", {}).get("sentence", ""))
+    note += (
+        "  Same captured frames every time; only the training seed changes.  "
+        "Reproduce with `python scripts/retrain_seed_sweep.py` after any "
+        "drifted stream.")
+    return _rows(header, rows, align="lrrll") + chr(10) + note
+
+
 @table("drift", "loop.json")
 def drift_table(payload: dict) -> str:
     steps = {entry["step"]: entry for entry in payload["steps"]}

@@ -152,15 +152,20 @@ bench:  ## Latency and throughput on this host (not a Jetson)
 ablate:  ## Reproduce the INT8 input-range investigation (three seeds)
 	$(VENV_PY) scripts/ablate_quantisation.py --data-root $(DATA) --device $(DEVICE)
 
+.PHONY: seed-sweep
+seed-sweep:  ## How reproducible the retraining step is; needs a drifted stream
+	$(VENV_PY) scripts/retrain_seed_sweep.py --data-root $(DATA) --device $(DEVICE)
+
 .PHONY: experiments
-experiments: train export quantise qat evaluate bench ablate demo  ## Every published number
+experiments: train export quantise qat evaluate bench ablate demo seed-sweep  ## Every published number
 	@echo
 	@echo "Results are in $(RESULTS)/.  To publish them: make publish"
 
 .PHONY: publish
 publish:  ## Copy this run's results into results/published and refresh the docs
 	cp $(RESULTS)/accuracy.json $(RESULTS)/latency.json $(RESULTS)/loop.json \
-	   $(RESULTS)/quantisation_ablation.json $(PUBLISHED)/
+	   $(RESULTS)/quantisation_ablation.json $(RESULTS)/retrain_seed_sweep.json \
+	   $(PUBLISHED)/
 	$(MAKE) docs-fix
 	$(MAKE) docs-check
 

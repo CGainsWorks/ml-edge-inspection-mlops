@@ -53,18 +53,63 @@ full dataset's 0.85 floor would block every candidate CI could ever produce,
 including ones working perfectly. A gate that can only say no is as useless as
 one that can only say yes.
 
-Two of the tiny thresholds are set by measurement resolution rather than taste:
+The thresholds that differ were measured, not chosen. Retraining the tiny model
+was run at four seeds against the same captured frames, on the same torch and
+onnxruntime versions CI installs:
 
-- `max_drop` is 0.04 rather than 0.02, because the standard error on AUROC over
-  100 test frames is about 0.04. A 0.02 allowance sits below the noise floor and
-  would reject half of all *identical* models.
-- the false-positive ceiling is 0.12 rather than 0.05, because with 50 test
-  negatives the measured rate moves in steps of 0.02.
+<!-- table:seed_sweep -->
 
-The published results were gated on the full-dataset thresholds. Finding this
-out was itself useful: the first attempt ran CI against the full gate, and it
-blocked a candidate that had recovered the drift perfectly and lost 0.026 AUROC
-on a holdout too small to resolve 0.026.
+|seed|reference holdout|drifted holdout|gate|failed check|
+|---|--:|--:|---|---|
+|7|0.8320|0.8902|promote|--|
+|17|0.8118|0.8436|promote|--|
+|27|0.8362|0.8636|promote|--|
+|37|0.7852|0.8858|promote|--|
+Against an incumbent at 0.8558 reference and 0.6938 drifted.  Over 4 seeds the candidate gains 0.150 to 0.196 AUROC on the drifted holdout and gives up 0.020 to 0.071 on the reference one; 4 of 4 promoted.  Same captured frames every time; only the training seed changes.  Reproduce with `python scripts/retrain_seed_sweep.py` after any drifted stream.
+
+<!-- /table:seed_sweep -->
+
+Every seed gains substantially on the distribution that triggered the alert and
+gives up some of the one it already handled. Lowering the captured share to 0.2
+to leave more room for replay made it *worse*, not better, because 160 distinct
+reference frames cannot be protected by being shown more often.
+
+So the trade is not a bug to be tuned away. At a tenth of the data it is
+unavoidable, and the honest consequence is a change of claim rather than a
+change of threshold:
+
+**CI tests the mechanism. The recovery claim comes from the full dataset.**
+
+CI proves the monitor stays quiet on a control stream and fires on a drifted
+one, that the retraining pipeline runs all ten stages, that the gate's
+arithmetic is right and it records every check, that a promoted model is
+redeployed behind a canary, and that rollback puts the previous version back.
+The *size* of the recovery is published from `make demo` on the full dataset,
+where the same retrain gains 0.19 on the drifted holdout and gains 0.01 on the
+reference one.
+
+Reproduce the table with `make seed-sweep` after any drifted stream.
+
+To iterate against CI's dependency versions without spending CI minutes, build a
+second virtualenv the way the workflow does and point the scripts at it:
+
+```bash
+python -m venv .venv-ci
+.venv-ci/bin/pip install -r requirements.txt
+.venv-ci/bin/pip install -r requirements-train.txt     --index-url https://download.pytorch.org/whl/cpu
+.venv-ci/bin/python -m pytest tests/ -q
+```
+
+That is how the exporter problem above was diagnosed: CI had torch 2.14 against
+2.6 locally, and reproducing it took one install rather than a sequence of
+guesses pushed to a runner.
+
+Getting here took three CI runs and then a local virtualenv built with CI's
+exact torch and onnxruntime, which is much the cheaper way to iterate: four
+retraining runs cost about eight minutes locally and nothing against the budget.
+The first guess -- that the difference was the torch version -- was wrong, and
+the local reproduction is what showed it: CI's exact stack passed locally, so the
+cause was the data scale rather than the dependency.
 
 ## Why this is possible at all on a free runner
 

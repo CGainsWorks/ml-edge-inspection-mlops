@@ -1,0 +1,84 @@
+{
+  "seeds": [
+    7,
+    17,
+    27,
+    37
+  ],
+  "epochs": 24,
+  "data_root": "data/ci",
+  "deploy_config": "configs/deploy_tiny.yaml",
+  "captured_fraction": null,
+  "incumbent": {
+    "version": 1,
+    "reference_auroc": 0.8558,
+    "drift_auroc": 0.6938
+  },
+  "runs": [
+    {
+      "seed": 7,
+      "returncode": 0,
+      "seconds": 89.2,
+      "run_id": "pub-7",
+      "reference_auroc": 0.832,
+      "drift_auroc": 0.8902,
+      "decision": "promote",
+      "failed_checks": [],
+      "train_frames": 557,
+      "captured_share": 0.4255,
+      "status": "ok"
+    },
+    {
+      "seed": 17,
+      "returncode": 0,
+      "seconds": 74.0,
+      "run_id": "pub-17",
+      "reference_auroc": 0.8118,
+      "drift_auroc": 0.8436,
+      "decision": "promote",
+      "failed_checks": [],
+      "train_frames": 557,
+      "captured_share": 0.4255,
+      "status": "ok"
+    },
+    {
+      "seed": 27,
+      "returncode": 0,
+      "seconds": 53.1,
+      "run_id": "pub-27",
+      "reference_auroc": 0.8362,
+      "drift_auroc": 0.8636,
+      "decision": "promote",
+      "failed_checks": [],
+      "train_frames": 557,
+      "captured_share": 0.4255,
+      "status": "ok"
+    },
+    {
+      "seed": 37,
+      "returncode": 0,
+      "seconds": 54.4,
+      "run_id": "pub-37",
+      "reference_auroc": 0.7852,
+      "drift_auroc": 0.8858,
+      "decision": "promote",
+      "failed_checks": [],
+      "train_frames": 557,
+      "captured_share": 0.4255,
+      "status": "ok"
+    }
+  ],
+  "summary": {
+    "runs": 4,
+    "promoted": 4,
+    "reference_min": 0.7852,
+    "reference_max": 0.8362,
+    "drift_min": 0.8436,
+    "drift_max": 0.8902,
+    "reference_drop_min": 0.0196,
+    "reference_drop_max": 0.0706,
+    "drift_gain_min": 0.1498,
+    "drift_gain_max": 0.1964,
+    "sentence": "Over 4 seeds the candidate gains 0.150 to 0.196 AUROC on the drifted holdout and gives up 0.020 to 0.071 on the reference one; 4 of 4 promoted."
+  }
+}

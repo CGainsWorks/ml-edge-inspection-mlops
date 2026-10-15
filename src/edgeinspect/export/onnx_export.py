@@ -22,6 +22,13 @@ to the default would mean the deployment artefact changing shape because a
 dependency moved.  Pinning both means the graph the Jetson receives is the graph
 CI tested.
 
+The TorchScript exporter is deprecated as of 2.9 and warns, which is the right
+amount of pressure: it still works throughout torch 2.x, and moving to the
+dynamo exporter is a deliberate migration rather than a dependency bump -- the
+graph has to be re-verified against the checkpoint, the INT8 calibration
+re-measured, and the sidecar's opset claim re-checked against TensorRT.  The
+``torch<3`` bound in ``requirements-train.txt`` is what keeps that a choice.
+
 **A sidecar JSON.**  Threshold, top-k, stride, input normalisation and the
 source checkpoint's hash live next to the ``.onnx`` rather than inside it.  A
 deployed model whose decision threshold is only recorded in a training log is a

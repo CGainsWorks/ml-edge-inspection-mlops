@@ -81,6 +81,9 @@ def parse_args(argv=None):
     parser.add_argument("--reason", default="drift-triggered retraining")
     parser.add_argument("--epochs", type=int, default=12)
     parser.add_argument("--lr", type=float, default=None)
+    parser.add_argument("--seed", type=int, default=None,
+                        help="override the training seed; used to measure how "
+                             "reproducible the retraining step actually is")
     parser.add_argument("--replay-fraction", type=float, default=1.0,
                         help="fraction of the original training set to replay")
     parser.add_argument("--captured-fraction", type=float, default=0.4,
@@ -318,6 +321,8 @@ def stage_train(context: dict) -> dict:
     overrides = {"optim": {"epochs": int(args.epochs)}}
     if args.lr is not None:
         overrides["optim"]["lr"] = float(args.lr)
+    if args.seed is not None:
+        overrides["seed"] = int(args.seed)
     config = deep_merge(config, overrides)
 
     from edgeinspect.train import track
