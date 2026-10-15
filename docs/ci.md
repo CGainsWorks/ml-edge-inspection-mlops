@@ -3,11 +3,18 @@
 Three workflows. One runs on every push, one runs weekly, one runs when somebody
 asks for a release.
 
-| Workflow | Trigger | Cost | What it proves |
+| Workflow | Trigger | Runner time | What it proves |
 |---|---|---|---|
-| [`ci.yml`](../.github/workflows/ci.yml) | push, PR | ~11 min | Lint, the whole test suite, a real training run, the export verification, quantisation, and **the entire operational loop** |
-| [`drift-watch.yml`](../.github/workflows/drift-watch.yml) | Mondays 04:17, manual | ~8 min/week | The monitor stays quiet across several independent control streams, and still fires on a drifted one |
-| [`edge-delivery.yml`](../.github/workflows/edge-delivery.yml) | manual only | 0 until asked | Builds, gates and packages the bundle that would be copied to a device |
+| [`ci.yml`](../.github/workflows/ci.yml) | push, PR | 8.6 min, measured | Lint, the whole test suite, a real training run, the export verification, quantisation, and **the entire operational loop** |
+| [`drift-watch.yml`](../.github/workflows/drift-watch.yml) | Mondays 04:17, manual | 3.7 min a week, measured | The monitor stays quiet across six independent control streams, and still fires on a drifted one |
+| [`edge-delivery.yml`](../.github/workflows/edge-delivery.yml) | manual only | 3.8 min when asked, measured | Builds, gates and packages the bundle that would be copied to a device |
+
+The `ci.yml` figure is the sum of its three jobs on a real run: 6.4 minutes for
+the pipeline, 1.5 for the compatibility job and 0.7 for the image. **GitHub bills
+none of it**, because Actions minutes are unlimited on public repositories --
+which is the single largest thing that can be done about CI cost, and it is a
+repository setting rather than a workflow optimisation. The structure below
+matters for the private case, and for not waiting ten minutes for a red tick.
 
 ---
 
@@ -173,7 +180,9 @@ is consistent with a per-window rate of several percent, which
 
 `drift-watch.yml` runs the control stream under six different seeds and requires
 zero triggers across all of them, writing the table to the run summary so the
-evidence accumulates rather than being re-asserted. It runs the drifted stream
+evidence accumulates rather than being re-asserted. Its first run reported *zero
+false alarms across six control streams*, which is six times the evidence
+`ci.yml` produces, for under four minutes a week. It runs the drifted stream
 in the same job, because thresholds loose enough never to false-alarm are also
 loose enough never to fire, and that failure is silent.
 
@@ -204,6 +213,9 @@ The bundle is the useful part, and its contents are not arbitrary:
 No TensorRT engine is included, and that is correct rather than a gap: a plan is
 tied to the exact GPU, driver and TensorRT version that built it, so it is built
 on the device at first start by the entrypoint.
+
+The first run produced a 12.8 MB bundle in 3.8 minutes, with the agent's smoke
+check passing on the deployed artefact before anything was packaged.
 
 ## What is deliberately absent
 
