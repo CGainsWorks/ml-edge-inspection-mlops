@@ -205,3 +205,43 @@ def test_the_jetson_paths_are_marked_as_never_run():
         text = (paths.ROOT / relative).read_text(encoding="utf-8").lower()
         assert "never" in text and "jetson" in text, (
             "{0} makes a Jetson claim without saying it was never run".format(relative))
+
+
+# ---------------------------------------------------------------------------
+# The exporter is pinned, not inherited
+# ---------------------------------------------------------------------------
+
+@pytest.mark.needs_torch
+def test_the_export_pins_the_torchscript_exporter(monkeypatch, tmp_path):
+    """The deployment artefact must not change shape because torch moved.
+
+    From torch 2.9 ``torch.onnx.export`` defaults to the dynamo exporter, which
+    needs ``onnxscript`` and emits a structurally different graph.  CI installed
+    2.14 against a development machine on 2.6 and the export died with a
+    ModuleNotFoundError on code that had worked locally for days.  Installing
+    onnxscript would have made it run and would also have changed the graph that
+    the INT8 calibration, the sidecar and the TensorRT build all consume.
+    """
+    import inspect as inspect_module
+
+    torch = pytest.importorskip("torch")
+    from edgeinspect.export import onnx_export
+    from edgeinspect.models.net import DefectNet
+
+    if "dynamo" not in inspect_module.signature(torch.onnx.export).parameters:
+        pytest.skip("this torch has no exporter choice to pin")
+
+    captured = {}
+    real_export = torch.onnx.export
+
+    def spy(*args, **kwargs):
+        captured.update(kwargs)
+        return real_export(*args, **kwargs)
+
+    monkeypatch.setattr(torch.onnx, "export", spy)
+    onnx_export.export(DefectNet(width=4), tmp_path / "m.onnx",
+                       {"in_channels": 1, "stride": 8}, input_size=64)
+
+    assert captured.get("dynamo") is False, (
+        "the export did not pin the exporter; it will follow torch's default")
+    assert captured.get("opset_version") == onnx_export.DEFAULT_OPSET

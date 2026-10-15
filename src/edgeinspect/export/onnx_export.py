@@ -13,9 +13,14 @@ every dynamic dimension, and a profile per spatial size costs build time and
 engine size for a resolution that does not change once a camera is bolted down.
 ``--dynamic-size`` overrides this when it genuinely does change.
 
-**Opset 17.**  The floor for the operators used here is far lower, but 17 is
-what TensorRT 10 and ONNX Runtime 1.18 both parse without a shim, and pinning it
-means the graph the Jetson receives is the graph CI tested.
+**Opset 17, and the TorchScript exporter rather than the dynamo one.**  The
+opset floor for the operators used here is far lower, but 17 is what TensorRT 10
+and ONNX Runtime 1.18 both parse without a shim.  The exporter is pinned for the
+same reason the opset is: from torch 2.9 the default became the dynamo exporter,
+which needs `onnxscript` and emits a structurally different graph, so leaving it
+to the default would mean the deployment artefact changing shape because a
+dependency moved.  Pinning both means the graph the Jetson receives is the graph
+CI tested.
 
 **A sidecar JSON.**  Threshold, top-k, stride, input normalisation and the
 source checkpoint's hash live next to the ``.onnx`` rather than inside it.  A
@@ -25,6 +30,7 @@ model nobody can safely redeploy.
 
 from __future__ import annotations
 
+import inspect
 from pathlib import Path
 from typing import Optional
 
@@ -42,6 +48,13 @@ __all__ = ["export", "verify", "read_sidecar", "write_sidecar", "sidecar_path",
            "sha256_file", "DEFAULT_OPSET"]
 
 DEFAULT_OPSET = 17
+
+# Whether this torch lets the exporter be chosen.  Resolved once, at import,
+# against the real function: doing it per call means inspecting whatever
+# `torch.onnx.export` happens to be at that moment, and anything that wraps it
+# -- a profiler, a test spy -- hides the parameter and silently turns the pin
+# off.  A test monkeypatching the export found exactly that.
+_EXPORTER_IS_SELECTABLE = "dynamo" in inspect.signature(torch.onnx.export).parameters
 
 
 def _input_spec(meta: dict, input_size: int) -> InputSpec:
@@ -77,6 +90,24 @@ def export(model: DefectNet, out_path: Path, meta: dict,
         dynamic_axes["input"].update({2: "height", 3: "width"})
         dynamic_axes["heatmap"].update({2: "cells_y", 3: "cells_x"})
 
+    # Pin the exporter, not the framework.
+    #
+    # From torch 2.9 `torch.onnx.export` defaults to the dynamo exporter, which
+    # needs `onnxscript` installed and produces a structurally different graph.
+    # This repository's requirements allow any torch 2.x, so CI installed a
+    # newer one than the development machine and the export died with
+    # ModuleNotFoundError: No module named 'onnxscript' -- on code that had
+    # worked locally all along.
+    #
+    # Adding onnxscript would have made it run; it would also have meant the
+    # deployment artefact silently changing shape because a dependency moved,
+    # and the artefact is what the INT8 calibration, the sidecar and the
+    # TensorRT build all consume.  So the exporter is chosen explicitly and the
+    # graph is the same on every torch that offers the choice.  `dynamo` does
+    # not exist before 2.5, hence the capability check rather than a version
+    # comparison.
+    options = {"dynamo": False} if _EXPORTER_IS_SELECTABLE else {}
+
     torch.onnx.export(
         model,
         dummy,
@@ -86,6 +117,7 @@ def export(model: DefectNet, out_path: Path, meta: dict,
         opset_version=opset,
         dynamic_axes=dynamic_axes,
         do_constant_folding=True,
+        **options,
     )
 
     sidecar = {
