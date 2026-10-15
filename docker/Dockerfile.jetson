@@ -1,0 +1,64 @@
+# The Jetson image.
+#
+# ***NEVER BUILT.***  No Jetson was available for this project, and this base
+# image only exists for arm64 with the L4T runtime, so it cannot be built on the
+# development machine either.  Nothing in this repository was produced by it.
+# docs/jetson.md is the long version.
+#
+# Committed because the differences from Dockerfile.runtime are the whole
+# content of a Jetson bring-up, and writing them down is most of the work:
+#
+#   * the base is NVIDIA's L4T image, which carries CUDA, cuDNN and TensorRT
+#     matched to the JetPack on the device.  Installing TensorRT from pip is not
+#     possible on Jetson and attempting it is the usual first day lost;
+#   * onnxruntime comes from NVIDIA's index, not PyPI, because the PyPI wheels
+#     are x86-only;
+#   * the container needs `--runtime nvidia` and, for a camera, the V4L device
+#     passed through;
+#   * engines are built ON the device at first start, never baked into the
+#     image: a TensorRT plan is tied to the exact GPU, driver and TensorRT
+#     version that produced it, so a plan built anywhere else will not
+#     deserialise.
+#
+#   docker build -f docker/Dockerfile.jetson -t edgeinspect:jetson .
+#   docker run --runtime nvidia --device /dev/video0 \
+#       -v /data/models:/app/models edgeinspect:jetson
+
+# JetPack 6.x.  The tag has to match the L4T version on the device: a container
+# newer than the host's driver stack fails at CUDA initialisation with an error
+# that does not mention versions.
+FROM nvcr.io/nvidia/l4t-jetpack:r36.3.0
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app/src \
+    EDGEINSPECT_ROOT=/app \
+    DEBIAN_FRONTEND=noninteractive
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python3-pip python3-dev libopenblas-dev \
+ && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt requirements-jetson.txt /app/
+
+# tensorrt and cuda-python come from the JetPack base image and the NVIDIA
+# index.  onnxruntime is uninstalled first: the PyPI package is CPU-only and
+# would shadow the GPU build.
+RUN pip3 install --no-cache-dir -r requirements.txt \
+ && pip3 uninstall -y onnxruntime \
+ && pip3 install --no-cache-dir --extra-index-url https://pypi.nvidia.com \
+      -r requirements-jetson.txt
+
+COPY src/ /app/src/
+COPY scripts/ /app/scripts/
+COPY configs/ /app/configs/
+
+# Build the engine on the device at first start, then serve.  `set -e` matters:
+# without it a failed engine build falls through to an inference process with no
+# engine, which then fails in a much less obvious place.
+COPY docker/entrypoint-jetson.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+ENTRYPOINT ["/app/entrypoint.sh"]

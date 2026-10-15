@@ -1,0 +1,270 @@
+name: edge-delivery
+
+# CI/CD for edge model delivery: produce the bundle that goes to the device.
+#
+# This is the "deploy-edge" half of the pipeline, and what it can honestly do is
+# bounded by the fact that **there is no device**.  No Jetson was available for
+# this project, so nothing here pushes to one.  What it does instead is
+# everything up to the transfer:
+#
+#   1. build the artefacts from scratch, on this runner
+#   2. put them through the registry, which hashes every one
+#   3. prove the deployed artefact passes the edge agent's smoke check -- the
+#      same check the device runs before it swaps a model in
+#   4. build the runtime container that would serve it
+#   5. package exactly what docs/jetson.md says to copy to the device, with a
+#      checksum file, and publish it as a run artifact
+#
+# Step 5 is the useful part.  The bundle is the graph, its sidecar (which
+# carries the decision threshold and the input normalisation -- a graph without
+# them is not deployable), the shared calibration set (the device needs it to
+# build its own INT8 TensorRT engine on the same frames the CPU INT8 graph was
+# calibrated on), the deployment manifest and the drift reference window.  A
+# bundle missing any of those produces a device that runs and is quietly wrong.
+#
+# Manual only.  It costs nothing until somebody asks for a release, and a
+# scheduled build of a bundle nobody is going to copy anywhere is pure spend.
+
+on:
+  workflow_dispatch:
+    inputs:
+      artefact:
+        description: "Which precision variant to deliver"
+        required: false
+        default: "int8"
+        type: choice
+        options: ["int8", "int8_percentile", "int8_keephead", "fp32"]
+      preset:
+        description: "Dataset preset to build the model from"
+        required: false
+        default: "tiny"
+        type: choice
+        options: ["tiny", "full"]
+
+concurrency:
+  group: edge-delivery
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: src
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PIP_PROGRESS_BAR: "off"
+
+jobs:
+  bundle:
+    name: build, gate and package the ${{ inputs.artefact }} bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-train.txt
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-train.txt \
+            --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Dataset
+        run: |
+          python scripts/make_dataset.py --preset "${{ inputs.preset }}" \
+            --root data/processed --verify 3
+
+      - name: Train, export and quantise
+        run: |
+          python scripts/train.py --data-root data/processed --name surface_defect \
+            --device cpu --no-mlflow
+          python scripts/export_onnx.py --weights models/surface_defect.pt
+          python scripts/quantise.py --model models/surface_defect_fp32.onnx
+
+      - name: Accuracy, which sets each variant's own threshold
+        run: |
+          python scripts/evaluate.py --skip-missing \
+            --models models/surface_defect_fp32.onnx \
+                     models/surface_defect_int8.onnx \
+                     models/surface_defect_int8_percentile.onnx \
+                     models/surface_defect_int8_keephead.onnx \
+            --out results/accuracy.json
+
+      # Registration hashes every artefact; promotion verifies the hash, writes
+      # the manifest, captures the drift reference from the new model's own
+      # telemetry, and runs the canary.  Any of those can refuse.
+      - name: Register and promote
+        run: |
+          python scripts/deploy.py register \
+            --models models/surface_defect_fp32.onnx \
+                     models/surface_defect_int8.onnx \
+                     models/surface_defect_int8_percentile.onnx \
+                     models/surface_defect_int8_keephead.onnx \
+            --checkpoint models/surface_defect.pt \
+            --accuracy results/accuracy.json \
+            --reason "edge-delivery ${{ github.run_id }}"
+          python scripts/deploy.py promote --version 1 \
+            --artefact "${{ inputs.artefact }}" \
+            --reason "edge-delivery ${{ github.run_id }}"
+
+      # The device-side check, run here so a bad bundle never leaves the runner.
+      # Loading proves the file is a graph; this proves it is the model.
+      - name: The edge agent's own smoke check
+        run: |
+          python - <<'PYTHON'
+          import json
+          import sys
+
+          sys.path.insert(0, "src")
+          from edgeinspect.edge.agent import EdgeAgent, smoke_check
+
+          with EdgeAgent() as agent:
+              outcome = agent.activate()
+              print(json.dumps(outcome, indent=2))
+              if not outcome["activated"]:
+                  raise SystemExit("the deployed artefact failed its smoke check")
+              result = smoke_check(agent.backend)
+              print(json.dumps(result.to_dict(), indent=2))
+              if not result.passed:
+                  raise SystemExit(result.reason)
+          print("smoke check passed")
+          PYTHON
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build the runtime image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.runtime
+          push: false
+          load: true
+          tags: edgeinspect:${{ github.sha }}
+
+      # Everything the device needs and nothing it does not.  The Dockerfile and
+      # the entrypoint go in too, so the bundle is self-describing rather than
+      # a set of files whose purpose has to be reconstructed.
+      - name: Package the bundle
+        run: |
+          set -eu
+          BUNDLE="bundle"
+          mkdir -p "$BUNDLE/models" "$BUNDLE/deploy" "$BUNDLE/docker"
+
+          python - <<'PYTHON'
+          import json
+          import shutil
+          import sys
+          from pathlib import Path
+
+          sys.path.insert(0, "src")
+          from edgeinspect import paths
+          from edgeinspect.artefacts import read_sidecar
+          from edgeinspect.registry import Registry, load_manifest
+
+          bundle = Path("bundle")
+          manifest = load_manifest()
+          artefact = paths.resolve(manifest["artefact"])
+
+          # The graph and its sidecar travel together, always.  A graph whose
+          # decision threshold is only recorded in a training log is a model
+          # nobody can safely redeploy.
+          shutil.copy2(artefact, bundle / "models" / artefact.name)
+          shutil.copy2(artefact.with_suffix(".json"),
+                       bundle / "models" / (artefact.stem + ".json"))
+
+          # The FP32 graph and the calibration set: the device builds its own
+          # TensorRT INT8 engine, and it must calibrate on the same frames the
+          # CPU INT8 graph was calibrated on or the two are not comparable.
+          for extra in ("surface_defect_fp32.onnx", "surface_defect_fp32.json",
+                        "calibration.npy", "calibration.json"):
+              source = paths.MODELS / extra
+              if source.exists():
+                  shutil.copy2(source, bundle / "models" / extra)
+
+          shutil.copy2(paths.DEPLOY / "current.json", bundle / "deploy" / "manifest.json")
+          reference = paths.DEPLOY / "reference.json"
+          if reference.exists():
+              shutil.copy2(reference, bundle / "deploy" / "reference.json")
+
+          for name in ("Dockerfile.jetson", "entrypoint-jetson.sh"):
+              shutil.copy2(Path("docker") / name, bundle / "docker" / name)
+
+          registry = Registry()
+          version = registry.production()
+          sidecar = read_sidecar(artefact)
+          with (bundle / "BUNDLE.json").open("w", encoding="utf-8") as handle:
+              json.dump({
+                  "model": manifest["model"],
+                  "version": manifest["version"],
+                  "artefact": artefact.name,
+                  "precision": manifest["precision"],
+                  "sha256": manifest["sha256"],
+                  "threshold": manifest["threshold"],
+                  "threshold_source": sidecar["decision"].get("threshold_source"),
+                  "input": sidecar["input"],
+                  "metrics": version.metrics if version else {},
+                  "dataset": version.dataset if version else {},
+                  "built_by": "edge-delivery workflow",
+                  "warning": (
+                      "No TensorRT engine is included.  A plan is tied to the exact "
+                      "GPU, driver and TensorRT version that built it, so it must be "
+                      "built on the device; docker/entrypoint-jetson.sh does that on "
+                      "first start.  Nothing in this bundle has ever run on a Jetson."
+                  ),
+              }, handle, indent=2)
+          print("bundle contents:")
+          for path in sorted(bundle.rglob("*")):
+              if path.is_file():
+                  print("  {0:<52} {1:>9} bytes".format(
+                      str(path.relative_to(bundle)), path.stat().st_size))
+          PYTHON
+
+          # A checksum file so the device can verify the transfer itself, which
+          # is the failure the agent's hash check exists to catch.
+          ( cd "$BUNDLE" && find . -type f ! -name SHA256SUMS -print0 \
+              | sort -z | xargs -0 sha256sum > SHA256SUMS )
+          echo
+          cat "$BUNDLE/SHA256SUMS"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Edge delivery bundle"
+            echo
+            echo "- variant: \`${{ inputs.artefact }}\`"
+            echo "- preset: \`${{ inputs.preset }}\`"
+            echo "- commit: \`${{ github.sha }}\`"
+            echo
+            echo "No TensorRT engine is included: a plan is tied to the GPU, driver"
+            echo "and TensorRT version that built it, so the device builds its own on"
+            echo "first start. Nothing in this bundle has run on a Jetson."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: edge-bundle-${{ inputs.artefact }}-${{ github.sha }}
+          path: bundle/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload the deployment record on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: edge-delivery-failure
+          path: |
+            results/*.json
+            artifacts/registry/registry.json
+            artifacts/deploy/*.json
+          if-no-files-found: ignore
+          retention-days: 7

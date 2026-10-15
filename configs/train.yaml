@@ -1,0 +1,68 @@
+# Training.
+#
+# The model is 61k parameters and the dataset is 1,600 frames, so this is
+# minutes rather than hours.  That is deliberate: the claim this repository
+# makes is about the operational loop, and a loop whose retraining step takes a
+# day cannot be demonstrated firing, recovering and rolling back inside a test.
+
+model:
+  width: 16                  # channel multiplier; 8 is the tiny CI profile
+  in_channels: 1
+  # The input contract: model_input = (image_in_0_1 - input_mean) * input_scale.
+  # Centring on zero is worth 0.156 AUROC under symmetric INT8 and costs
+  # one subtraction per pixel.  scripts/ablate_quantisation.py trains the
+  # input_mean: 0.0 / input_scale: 1.0 variant and measures the difference;
+  # the reasoning is in edgeinspect/models/preprocess.py.
+  input_mean: 0.5
+  input_scale: 2.0
+
+data:
+  root: data/processed
+  batch_size: 32
+  num_workers: 0             # datasets this size are faster in-process
+
+optim:
+  epochs: 24
+  lr: 0.003
+  weight_decay: 0.0001
+  warmup_epochs: 2
+  scheduler: cosine
+  grad_clip: 1.0
+
+loss:
+  # Two terms out of one head: per-cell segmentation and image-level
+  # classification.  The image term is what the deployed threshold acts on, so
+  # training without it optimises a proxy for the metric that gets reported.
+  cell_weight: 1.0
+  image_weight: 0.5
+  # Defective cells are roughly 1 in 300, so an unweighted BCE converges to
+  # predicting "clean" everywhere with a very good loss.
+  pos_weight: 24.0
+  top_k: 8                   # must match postprocess.image_score
+
+augment:
+  # Photometric ranges are deliberately NARROWER than the lamp_ageing shift in
+  # configs/data.yaml.  Augmenting over the drift would make the model
+  # invariant to it, and a drift the model does not care about is a drift this
+  # project cannot demonstrate recovering from.
+  # tests/test_augment.py asserts this relationship holds.
+  enabled: true
+  hflip: true
+  vflip: true
+  rot90: true
+  brightness: 0.06
+  contrast: 0.08
+  noise: 0.010
+  blur: 0.25
+
+eval:
+  target_fpr: 0.02           # the operating point: 2 false alarms per 100 good parts
+  min_iou: 0.1               # stride-8 head; see metrics/localisation.py
+
+mlflow:
+  experiment: edge-inspection
+  # A local file store by default, so `make train` needs no server.  Point
+  # MLFLOW_TRACKING_URI at a real server and nothing else changes.
+  tracking_uri: null
+
+seed: 7

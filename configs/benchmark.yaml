@@ -1,0 +1,28 @@
+# Latency benchmarking.
+#
+# Every number this produces is labelled with the host it came from.  None of
+# them are Jetson numbers, because no Jetson was available; docs/jetson.md is
+# explicit and benchmarks/results.csv carries the host in every row.
+
+iterations: 300
+warmup: 30
+batch_sizes: [1, 4, 8]
+intra_op_threads: 4     # pinned: an unpinned thread count makes latency a
+                        # measurement of what else the machine is doing
+
+variants:
+  - name: fp32
+    model: models/surface_defect_fp32.onnx
+    providers: [CPUExecutionProvider]
+  - name: int8
+    model: models/surface_defect_int8.onnx
+    providers: [CPUExecutionProvider]
+  - name: int8_percentile
+    model: models/surface_defect_int8_percentile.onnx
+    providers: [CPUExecutionProvider]
+  - name: int8_keephead
+    model: models/surface_defect_int8_keephead.onnx
+    providers: [CPUExecutionProvider]
+  - name: qat_int8
+    model: models/surface_defect_qat_int8.onnx
+    providers: [CPUExecutionProvider]

@@ -1,0 +1,30 @@
+# Keep the build context small.  The training image copies src, scripts,
+# pipelines, configs and tests; everything below is either generated, enormous,
+# or both.
+
+.git/
+.github/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# Generated: rebuilt inside the container or mounted as a volume.
+data/
+models/
+results/
+artifacts/
+mlruns/
+mlartifacts/
+benchmarks/
+
+docs/
+*.md
+!README.md
+
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

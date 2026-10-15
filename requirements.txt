@@ -1,0 +1,27 @@
+# Runtime and development.  What the edge runtime, the monitoring stack and the
+# test suite need.  Python 3.10 or newer; 3.12 produced the published numbers.
+#
+# Deliberately absent: torch.  The edge runtime executes ONNX Runtime or
+# TensorRT, so the deployed image does not need a training framework.
+# tests/test_runtime_boundary.py enforces that.
+
+numpy>=1.26,<3
+scipy>=1.11,<2
+pyyaml>=6.0
+pillow>=10.0
+imageio>=2.34                    # the README figure
+tqdm>=4.66
+
+# Inference.  onnxruntime is the portable backend and is what CI runs.
+# onnxruntime-gpu and tensorrt are installed separately on a CUDA host or a
+# Jetson; see docs/jetson.md.
+onnx>=1.16
+onnxruntime>=1.18
+
+# Experiment tracking.  Used with a local file store by default, so nothing
+# here needs a server.
+mlflow>=2.14
+
+# Development
+pytest>=8.0
+flake8>=7.0

@@ -1,0 +1,42 @@
+# The training image: dataset generation, training, export, quantisation and the
+# retraining pipeline.
+#
+# CPU torch on purpose.  The model is 61k parameters, the published training run
+# is 130 seconds on a GPU and about seven minutes on CPU, and the whole point of
+# keeping it that small is that the retraining half of the loop can be exercised
+# on a runner with no GPU.  For a CUDA host, rebuild with:
+#
+#   docker build -f docker/Dockerfile.train --build-arg TORCH_INDEX=cu124 \
+#       -t edgeinspect:train .
+#
+# and run it with `--gpus all`.
+
+FROM python:3.12-slim-bookworm
+
+ARG TORCH_INDEX=cpu
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app/src \
+    EDGEINSPECT_ROOT=/app \
+    MLFLOW_TRACKING_URI=sqlite:////app/mlruns/mlflow.db
+
+WORKDIR /app
+
+COPY requirements.txt requirements-train.txt /app/
+
+RUN pip install --no-cache-dir --upgrade pip \
+ && pip install --no-cache-dir -r requirements.txt \
+ && pip install --no-cache-dir -r requirements-train.txt \
+      --index-url "https://download.pytorch.org/whl/${TORCH_INDEX}"
+
+COPY src/ /app/src/
+COPY scripts/ /app/scripts/
+COPY pipelines/ /app/pipelines/
+COPY configs/ /app/configs/
+COPY tests/ /app/tests/
+COPY pyproject.toml pytest.ini Makefile /app/
+
+RUN mkdir -p /app/data /app/models /app/results /app/artifacts /app/mlruns
+
+CMD ["python", "scripts/train.py", "--help"]

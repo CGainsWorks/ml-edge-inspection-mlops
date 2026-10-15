@@ -1,0 +1,16 @@
+# Jetson (JetPack 6.x, Python 3.10).  NEVER INSTALLED OR EXERCISED — no board
+# was available for this project.  docs/jetson.md is explicit about what that
+# means for every Jetson claim in this repository.
+#
+# tensorrt, cuda-python and onnxruntime-gpu come from the JetPack apt packages
+# and the NVIDIA pip index, not from PyPI.  Install the base requirements
+# first, minus onnxruntime:
+#
+#   pip install -r requirements.txt
+#   pip uninstall -y onnxruntime
+#   pip install --extra-index-url https://pypi.nvidia.com -r requirements-jetson.txt
+
+tensorrt>=10.0            # ships with JetPack 6; pinned by the JetPack version
+cuda-python>=12.2         # device memory and stream management for the TRT runtime
+onnxruntime-gpu>=1.18     # fallback backend when no engine has been built yet
+jetson-stats>=4.2         # tegrastats wrapper, used by scripts/bench_jetson.sh

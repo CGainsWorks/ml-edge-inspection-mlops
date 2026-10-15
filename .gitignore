@@ -1,0 +1,60 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Model artefacts.  Checkpoints and graphs are rebuilt by `make train export
+# quantise`; TensorRT plans are machine-specific and must never be committed,
+# because a plan is tied to the exact GPU, driver and TensorRT version that
+# built it.
+models/*
+!models/.gitkeep
+*.pt
+*.pth
+*.onnx
+*.onnx.data
+*.engine
+*.plan
+*.cache
+
+# The dataset is generated, not stored.  scripts/make_dataset.py rebuilds it
+# byte for byte from the seeds in configs/data.yaml.
+data/*
+!data/.gitkeep
+!data/DATASET_CARD.md
+
+# Run outputs.  results/published/ is tracked and is the exception.
+results/*
+!results/.gitkeep
+!results/published/
+!results/published/**
+
+# Operational state: registry, deployments, telemetry, retraining runs.
+# artifacts/demo/ is what `make demo` writes and is disposable.
+artifacts/*
+!artifacts/.gitkeep
+
+# MLflow file store
+mlruns/
+mlartifacts/
+
+# Generated intermediates.  scripts/make_tables.py writes these, but the tables
+# the documentation actually serves are the blocks embedded in the .md files,
+# and those are what scripts/check_docs.py verifies.  Committing a second,
+# unverified copy of the same tables is how the two end up disagreeing.
+docs/tables/
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "edgeinspect"
+version = "1.0.0"
+description = "Edge defect inspection with a closed MLOps loop: train, quantise, deploy, monitor for drift, retrain, roll back"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "CGainsWorks" }]
+keywords = ["mlops", "edge-ai", "tensorrt", "jetson", "drift-detection", "quantisation"]
+classifiers = [
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: Apache Software License",
+]
+
+# Runtime only.  Training needs requirements-train.txt on top; the edge runtime
+# image installs exactly this and nothing else.
+dependencies = [
+    "numpy>=1.26,<3",
+    "scipy>=1.11,<2",
+    "pyyaml>=6.0",
+    "pillow>=10.0",
+    "onnx>=1.16",
+    "onnxruntime>=1.18",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "flake8>=7.0", "mlflow>=2.14", "imageio>=2.34", "tqdm>=4.66"]
+train = ["torch>=2.2,<3", "torchvision>=0.17,<1"]
+
+[project.scripts]
+edgeinspect = "edgeinspect.cli:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]

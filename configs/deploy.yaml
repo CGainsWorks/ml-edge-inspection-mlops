@@ -1,0 +1,70 @@
+# Deployment, the retraining gate, and rollback.
+
+model_name: surface-defect
+
+# Which artefact goes to the device.  int8 is the default because the target is
+# a Jetson and the file is a quarter of the size; `make deploy ARTEFACT=fp32`
+# overrides it.
+artefact: int8
+
+# The reference window the drift monitor compares against is captured from the
+# newly deployed model's own telemetry, on frames from the clean stream.  It has
+# to be at least the policy window; 400 gives the statistics room.
+reference_frames: 400
+
+# The retraining gate.
+#
+# The asymmetry here is the point.  A retrained model has to be materially
+# better on the distribution that triggered the retraining, and it must not have
+# paid for that by getting worse on the distribution it already handled.  A gate
+# with only the first condition promotes a model that has forgotten the original
+# domain -- and because the trigger came from the drifted domain, nothing in the
+# pipeline would notice.
+gate:
+  # Must improve here.  This is the drifted holdout: the conditions that fired
+  # the alert.
+  improvement:
+    metric: drift.image.auroc
+    min_delta: 0.03
+  # Must not regress here.  This is the original holdout: the conditions the
+  # incumbent was validated on.
+  regression:
+    metric: reference.image.auroc
+    max_drop: 0.02
+  # Absolute floors, applied to the candidate on both holdouts.  An improvement
+  # from unusable to slightly less unusable is not a deployable model.
+  #
+  # These are set against a MEASURED reference point, not chosen by taste: what a
+  # model trained directly on 1,200 frames of the drifted domain reaches, which
+  # for the current lamp_ageing domain is 0.90 AUROC.  A floor above what the
+  # data permits blocks every candidate forever and looks like a broken
+  # pipeline; a floor below what a trivial model reaches passes everything and
+  # looks like a working one.
+  #
+  # Note it is a reference point and not an upper bound.  The retrained model
+  # reaches 0.909 on the drifted holdout, slightly above it, because it trains
+  # on the reference domain as well -- more data, and the two domains share most
+  # of what there is to learn about defect appearance.
+  #
+  # Measuring it first also caught a bug: the first version of lamp_ageing had a
+  # ceiling of 0.709 because it dimmed defects twice, which would have made this
+  # a demonstration of an unrecoverable fault rather than of drift.  See
+  # docs/results.md.
+  floors:
+    - metric: reference.image.auroc
+      min: 0.85
+    - metric: drift.image.auroc
+      min: 0.75
+    - metric: reference.image.false_positive_rate
+      max: 0.05
+
+# Canary verification after deployment: the new model is run over a short live
+# stream on the device and checked before the deployment is called good.
+canary:
+  frames: 300
+  stream: clean
+  # A canary that only checks the model loads is a smoke test.  These are the
+  # conditions under which the deployment is rolled back automatically.
+  max_flagged_rate: 0.35      # runaway false alarms on a mostly-good stream
+  min_flagged_rate: 0.001     # a model that flags nothing has failed open
+  max_latency_p95_ms: 250.0

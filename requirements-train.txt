@@ -1,0 +1,13 @@
+# Training only.  Not installed on the edge device and not in the runtime image.
+#
+# CPU wheels are enough for this model: it is 61k parameters and the published
+# training run takes minutes.  CI installs from the CPU index:
+#
+#   pip install -r requirements-train.txt --index-url https://download.pytorch.org/whl/cpu
+#
+# For a CUDA host use the matching index instead, for example cu124:
+#
+#   pip install -r requirements-train.txt --index-url https://download.pytorch.org/whl/cu124
+
+torch>=2.2,<3
+torchvision>=0.17,<1

@@ -1,0 +1,18 @@
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.gif binary
+*.mp4 binary
+*.onnx binary
+*.pt binary
+*.engine binary
+
+# Git LFS is declared for the large binaries this project would produce if they
+# were ever committed.  They are not: weights are rebuilt by `make train`, and
+# TensorRT plans are machine-specific.  The rules are here so that an accidental
+# `git add models/` lands in LFS instead of the object database.
+*.onnx filter=lfs diff=lfs merge=lfs -text
+*.pt filter=lfs diff=lfs merge=lfs -text
+*.engine filter=lfs diff=lfs merge=lfs -text
+*.mp4 filter=lfs diff=lfs merge=lfs -text

@@ -1,0 +1,16 @@
+variant,precision,batch_size,providers,mean_ms,p50_ms,p95_ms,p99_ms,throughput_fps,bytes,host
+fp32,fp32,1,CPUExecutionProvider,1.1407,1.0584,1.8486,2.2626,876.65,390903,Windows-11-10.0.26200-SP0
+fp32,fp32,4,CPUExecutionProvider,4.7941,4.5992,6.8707,10.5377,834.36,390903,Windows-11-10.0.26200-SP0
+fp32,fp32,8,CPUExecutionProvider,9.2499,9.0672,11.9464,13.4657,864.87,390903,Windows-11-10.0.26200-SP0
+int8,int8,1,CPUExecutionProvider,1.404,1.2344,1.8134,2.5439,712.25,113424,Windows-11-10.0.26200-SP0
+int8,int8,4,CPUExecutionProvider,5.1074,4.985,6.2598,8.6206,783.18,113424,Windows-11-10.0.26200-SP0
+int8,int8,8,CPUExecutionProvider,9.9991,9.6196,12.4231,14.445,800.07,113424,Windows-11-10.0.26200-SP0
+int8_percentile,int8,1,CPUExecutionProvider,1.2895,1.1926,1.7732,2.5373,775.49,113424,Windows-11-10.0.26200-SP0
+int8_percentile,int8,4,CPUExecutionProvider,5.8439,5.4908,8.5669,12.018,684.47,113424,Windows-11-10.0.26200-SP0
+int8_percentile,int8,8,CPUExecutionProvider,11.4874,10.7607,14.6923,24.3228,696.42,113424,Windows-11-10.0.26200-SP0
+int8_keephead,int8,1,CPUExecutionProvider,1.2428,1.1896,1.6433,1.9528,804.63,112792,Windows-11-10.0.26200-SP0
+int8_keephead,int8,4,CPUExecutionProvider,5.3833,5.1152,7.2878,9.5898,743.04,112792,Windows-11-10.0.26200-SP0
+int8_keephead,int8,8,CPUExecutionProvider,11.6271,10.7936,17.0838,22.5364,688.05,112792,Windows-11-10.0.26200-SP0
+qat_int8,int8,1,CPUExecutionProvider,1.4167,1.3159,2.125,2.7491,705.87,113424,Windows-11-10.0.26200-SP0
+qat_int8,int8,4,CPUExecutionProvider,5.9571,5.5349,8.492,11.9044,671.47,113424,Windows-11-10.0.26200-SP0
+qat_int8,int8,8,CPUExecutionProvider,11.5766,11.0236,15.5205,22.3197,691.05,113424,Windows-11-10.0.26200-SP0

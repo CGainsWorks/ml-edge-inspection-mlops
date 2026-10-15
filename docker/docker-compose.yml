@@ -1,0 +1,108 @@
+# The whole loop in containers.
+#
+#   docker compose -f docker/docker-compose.yml up --build
+#
+# Three services, in dependency order:
+#
+#   build   the training image: dataset, train, export, quantise, evaluate.
+#           Runs once and exits.  Skips any stage whose output already exists,
+#           so a second `up` goes straight to the loop.
+#   loop    the operational loop: deploy, drift, retrain, redeploy, roll back.
+#           Runs once and exits with the loop's own exit code.
+#   mlflow  the tracking UI, so the runs the loop produced can be looked at.
+#           Stays up; everything else has finished by then.
+#
+# The volumes are the point of the split: `models`, `artifacts` and `results` are
+# shared, so the runtime container consumes exactly the artefacts the training
+# container produced, through the registry, rather than through a shared Python
+# process.
+
+name: edgeinspect
+
+services:
+  build:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.train
+    image: edgeinspect:train
+    working_dir: /app
+    environment:
+      PYTHONPATH: /app/src
+      EDGEINSPECT_ROOT: /app
+      MLFLOW_TRACKING_URI: sqlite:////app/mlruns/mlflow.db
+    volumes:
+      - ../data:/app/data
+      - ../models:/app/models
+      - ../results:/app/results
+      - ../artifacts:/app/artifacts
+      - ../mlruns:/app/mlruns
+    command: >
+      sh -c "
+        set -e;
+        test -f data/processed/dataset.json ||
+          python scripts/make_dataset.py --preset full --root data/processed --verify 3;
+        test -f models/surface_defect.pt ||
+          python scripts/train.py --data-root data/processed --name surface_defect;
+        test -f models/surface_defect_fp32.onnx ||
+          python scripts/export_onnx.py --weights models/surface_defect.pt;
+        test -f models/surface_defect_int8.onnx ||
+          python scripts/quantise.py --model models/surface_defect_fp32.onnx;
+        test -f results/accuracy.json ||
+          python scripts/evaluate.py --skip-missing
+            --models models/surface_defect_fp32.onnx models/surface_defect_int8.onnx
+                     models/surface_defect_int8_percentile.onnx
+            --out results/accuracy.json;
+        echo 'artefacts ready'
+      "
+
+  loop:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.train
+    image: edgeinspect:train
+    working_dir: /app
+    depends_on:
+      build:
+        condition: service_completed_successfully
+    environment:
+      PYTHONPATH: /app/src
+      EDGEINSPECT_ROOT: /app
+      MLFLOW_TRACKING_URI: sqlite:////app/mlruns/mlflow.db
+    volumes:
+      - ../data:/app/data
+      - ../models:/app/models
+      - ../results:/app/results
+      - ../artifacts:/app/artifacts
+      - ../mlruns:/app/mlruns
+    command: ["python", "scripts/run_loop.py", "--fresh"]
+
+  # The edge half on its own, in the image that has no training framework in it.
+  # Not in the default `up` path because the loop already exercises it; bring it
+  # up explicitly with `docker compose --profile edge up edge`.
+  edge:
+    profiles: ["edge"]
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.runtime
+    image: edgeinspect:runtime
+    working_dir: /app
+    volumes:
+      - ../models:/app/models
+      - ../results:/app/results
+      - ../artifacts:/app/artifacts
+    command: ["python", "scripts/simulate_edge.py", "--stream", "clean", "--frames", "300"]
+
+  mlflow:
+    image: edgeinspect:train
+    working_dir: /app
+    depends_on:
+      loop:
+        condition: service_completed_successfully
+    volumes:
+      - ../mlruns:/app/mlruns
+    ports:
+      - "5000:5000"
+    command: >
+      python -m mlflow ui
+        --backend-store-uri sqlite:////app/mlruns/mlflow.db
+        --host 0.0.0.0 --port 5000

@@ -1,0 +1,29 @@
+# Decimals that appear in the documentation and are deliberately NOT results.
+#
+# scripts/check_docs.py requires every decimal with three or more places, outside
+# code fences and generated tables, to appear somewhere in results/published/.
+# This file is the escape hatch, and it is a list rather than a switch because an
+# exception nobody can see is not an exception, it is a hole.
+#
+# Format: one value per line, then a reason.
+
+# -- Configured thresholds, not measurements --------------------------------
+0.216   # effective defect contrast under lamp_ageing: 0.30 gain-dimmed by 0.72
+0.067   # PSI null expectation at window 200 vs reference 400, 10 bins
+0.128   # its 95th percentile; both computed, not measured on a model
+0.156   # the input-contract effect, quoted from the ablation's own conclusion
+0.709   # measured ceiling of the first lamp_ageing domain, recorded in prose
+        # because the domain it describes no longer exists to be re-measured
+
+# -- Statistical constants ---------------------------------------------------
+1.4826  # MAD-to-sigma factor for a normal distribution
+0.0625  # not currently used; kept as an example of the format
+
+# -- Measurements of the `tiny` preset, which is not a published configuration -
+#
+# CI trains on a tenth of the data and its numbers are not published: publishing
+# them would mean two accuracy tables and a reader having to work out which
+# applies.  They are quoted in docs/ci.md to justify the thresholds in
+# configs/deploy_tiny.yaml, and `make demo-quick` reproduces both.
+0.856   # tiny-preset baseline INT8 AUROC on the tiny test split (full: 0.8817)
+0.026   # the regression the full gate rejected on a 100-frame holdout

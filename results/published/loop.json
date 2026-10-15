@@ -1,0 +1,205 @@
+{
+  "outcome": "ok",
+  "quick": false,
+  "seconds": 373.6,
+  "production_version": 1,
+  "versions": [
+    {
+      "version": 1,
+      "stage": "production",
+      "reason": "baseline"
+    },
+    {
+      "version": 2,
+      "stage": "archived",
+      "reason": "lamp_ageing drift detected at frame 300"
+    }
+  ],
+  "events": [
+    {
+      "ts": "2026-10-15T12:15:24+00:00",
+      "action": "register",
+      "version": 1,
+      "previous_version": null,
+      "reason": "baseline"
+    },
+    {
+      "ts": "2026-10-15T12:15:25+00:00",
+      "action": "promote",
+      "version": 1,
+      "previous_version": null,
+      "reason": "baseline deployment",
+      "stage": "production"
+    },
+    {
+      "ts": "2026-10-15T12:15:25+00:00",
+      "action": "deploy",
+      "version": 1,
+      "previous_version": null,
+      "reason": "baseline deployment",
+      "artefact": "models/surface_defect_int8.onnx"
+    },
+    {
+      "ts": "2026-10-15T12:20:44+00:00",
+      "action": "register",
+      "version": 2,
+      "previous_version": null,
+      "reason": "lamp_ageing drift detected at frame 300"
+    },
+    {
+      "ts": "2026-10-15T12:20:45+00:00",
+      "action": "promote",
+      "version": 2,
+      "previous_version": 1,
+      "reason": "lamp_ageing drift detected at frame 300",
+      "stage": "production"
+    },
+    {
+      "ts": "2026-10-15T12:20:45+00:00",
+      "action": "deploy",
+      "version": 2,
+      "previous_version": 1,
+      "reason": "lamp_ageing drift detected at frame 300",
+      "artefact": "artifacts/retrain/20261015-131727/models/surface_defect_v2_int8.onnx"
+    },
+    {
+      "ts": "2026-10-15T12:21:34+00:00",
+      "action": "stage",
+      "version": 2,
+      "previous_version": 2,
+      "reason": "run_loop.py rollback demonstration",
+      "stage": "archived"
+    },
+    {
+      "ts": "2026-10-15T12:21:34+00:00",
+      "action": "promote",
+      "version": 1,
+      "previous_version": null,
+      "reason": "run_loop.py rollback demonstration",
+      "stage": "production"
+    },
+    {
+      "ts": "2026-10-15T12:21:34+00:00",
+      "action": "rollback",
+      "version": 1,
+      "previous_version": null,
+      "reason": "run_loop.py rollback demonstration",
+      "artefact": "models/surface_defect_int8.onnx"
+    }
+  ],
+  "steps": [
+    {
+      "step": 1,
+      "title": "Register and deploy the baseline",
+      "seconds": 20.3,
+      "version": 1,
+      "deployed": 1
+    },
+    {
+      "step": 2,
+      "title": "Clean stream: the monitor must NOT fire",
+      "seconds": 27.1,
+      "frames": 900,
+      "triggered": false,
+      "windows": 15,
+      "false_alarms": 0,
+      "exit_code": 0
+    },
+    {
+      "step": 3,
+      "title": "Drifted stream: the monitor MUST fire",
+      "seconds": 50.8,
+      "frames": 1200,
+      "triggered": true,
+      "onset_frame": 200,
+      "first_trigger_frame": 300,
+      "detection_latency_frames": 100,
+      "sequential_earliest_frame": 210,
+      "flagged_rate": 0.693333,
+      "captured": 862
+    },
+    {
+      "step": 4,
+      "title": "Post-drift steady state on the incumbent: the BEFORE number",
+      "seconds": 23.3,
+      "model_version": 1,
+      "frames": 600,
+      "flagged_rate": 1.0,
+      "latency_p95_ms": 4.9416
+    },
+    {
+      "step": 5,
+      "title": "Retrain from what the device captured, gate it, deploy it",
+      "seconds": 224.7,
+      "returncode": 0,
+      "gate": "promote",
+      "gate_checks": [
+        {
+          "kind": "improvement",
+          "metric": "drift.image.auroc",
+          "candidate": 0.904117,
+          "incumbent": 0.719022,
+          "delta": 0.185095,
+          "required": 0.03,
+          "passed": true,
+          "note": ""
+        },
+        {
+          "kind": "regression",
+          "metric": "reference.image.auroc",
+          "candidate": 0.886072,
+          "incumbent": 0.881689,
+          "drop": -0.004383,
+          "allowed": 0.02,
+          "passed": true
+        },
+        {
+          "kind": "floor",
+          "metric": "reference.image.auroc",
+          "candidate": 0.886072,
+          "min": 0.85,
+          "passed": true
+        },
+        {
+          "kind": "floor",
+          "metric": "drift.image.auroc",
+          "candidate": 0.904117,
+          "min": 0.75,
+          "passed": true
+        },
+        {
+          "kind": "ceiling",
+          "metric": "reference.image.false_positive_rate",
+          "candidate": 0.033333,
+          "max": 0.05,
+          "passed": true
+        }
+      ],
+      "deployed": true,
+      "failed_stages": [],
+      "candidate_reference_auroc": 0.886072,
+      "candidate_drift_auroc": 0.904117,
+      "production_version": 2,
+      "run_dir": "artifacts/retrain/20261015-131727"
+    },
+    {
+      "step": 6,
+      "title": "Post-drift steady state on the new model: the AFTER number",
+      "seconds": 23.1,
+      "model_version": 2,
+      "flagged_rate_before": 1.0,
+      "flagged_rate_after": 0.053333,
+      "latency_p95_ms": 2.8464,
+      "monitor_quiet": true,
+      "monitor_exit_code": 0
+    },
+    {
+      "step": 7,
+      "title": "Roll back and prove the device is serving the previous version",
+      "seconds": 3.9,
+      "rolled_back_to": 1,
+      "device_is_serving": 1,
+      "matches": true
+    }
+  ]
+}

@@ -1,0 +1,319 @@
+{
+  "split": "test",
+  "frames": 600,
+  "seeds": [
+    7,
+    17,
+    27
+  ],
+  "data_root": "data/processed",
+  "seconds": 645.6,
+  "runs": [
+    {
+      "seed": 7,
+      "models": {
+        "centred": {
+          "onnx": "models/ablation/ablate_centred_s7_fp32.onnx",
+          "input": {
+            "mean": 0.5,
+            "scale": 2.0
+          },
+          "fp32_auroc": 0.887278,
+          "calibration_frames": 192,
+          "variants": {
+            "symmetric": {
+              "auroc": 0.883272,
+              "delta_vs_fp32": -0.004006,
+              "onnx": "models/ablation/ablate_centred_s7_symmetric.onnx"
+            },
+            "asymmetric": {
+              "auroc": 0.893528,
+              "delta_vs_fp32": 0.00625,
+              "onnx": "models/ablation/ablate_centred_s7_asymmetric.onnx"
+            },
+            "exclude_stem": {
+              "auroc": 0.884939,
+              "delta_vs_fp32": -0.002339,
+              "onnx": "models/ablation/ablate_centred_s7_exclude_stem.onnx"
+            },
+            "per_tensor_weights": {
+              "auroc": 0.887194,
+              "delta_vs_fp32": -8.4e-05,
+              "onnx": "models/ablation/ablate_centred_s7_per_tensor_weights.onnx"
+            }
+          }
+        },
+        "uncentred": {
+          "onnx": "models/ablation/ablate_uncentred_s7_fp32.onnx",
+          "input": {
+            "mean": 0.0,
+            "scale": 1.0
+          },
+          "fp32_auroc": 0.887778,
+          "calibration_frames": 192,
+          "variants": {
+            "symmetric": {
+              "auroc": 0.739878,
+              "delta_vs_fp32": -0.1479,
+              "onnx": "models/ablation/ablate_uncentred_s7_symmetric.onnx"
+            },
+            "asymmetric": {
+              "auroc": 0.889128,
+              "delta_vs_fp32": 0.00135,
+              "onnx": "models/ablation/ablate_uncentred_s7_asymmetric.onnx"
+            },
+            "exclude_stem": {
+              "auroc": 0.888683,
+              "delta_vs_fp32": 0.000905,
+              "onnx": "models/ablation/ablate_uncentred_s7_exclude_stem.onnx"
+            },
+            "per_tensor_weights": {
+              "auroc": 0.887556,
+              "delta_vs_fp32": -0.000222,
+              "onnx": "models/ablation/ablate_uncentred_s7_per_tensor_weights.onnx"
+            }
+          }
+        }
+      }
+    },
+    {
+      "seed": 17,
+      "models": {
+        "centred": {
+          "onnx": "models/ablation/ablate_centred_s17_fp32.onnx",
+          "input": {
+            "mean": 0.5,
+            "scale": 2.0
+          },
+          "fp32_auroc": 0.889389,
+          "calibration_frames": 192,
+          "variants": {
+            "symmetric": {
+              "auroc": 0.889939,
+              "delta_vs_fp32": 0.00055,
+              "onnx": "models/ablation/ablate_centred_s17_symmetric.onnx"
+            },
+            "asymmetric": {
+              "auroc": 0.891128,
+              "delta_vs_fp32": 0.001739,
+              "onnx": "models/ablation/ablate_centred_s17_asymmetric.onnx"
+            },
+            "exclude_stem": {
+              "auroc": 0.8861,
+              "delta_vs_fp32": -0.003289,
+              "onnx": "models/ablation/ablate_centred_s17_exclude_stem.onnx"
+            },
+            "per_tensor_weights": {
+              "auroc": 0.887511,
+              "delta_vs_fp32": -0.001878,
+              "onnx": "models/ablation/ablate_centred_s17_per_tensor_weights.onnx"
+            }
+          }
+        },
+        "uncentred": {
+          "onnx": "models/ablation/ablate_uncentred_s17_fp32.onnx",
+          "input": {
+            "mean": 0.0,
+            "scale": 1.0
+          },
+          "fp32_auroc": 0.901833,
+          "calibration_frames": 192,
+          "variants": {
+            "symmetric": {
+              "auroc": 0.859167,
+              "delta_vs_fp32": -0.042666,
+              "onnx": "models/ablation/ablate_uncentred_s17_symmetric.onnx"
+            },
+            "asymmetric": {
+              "auroc": 0.892772,
+              "delta_vs_fp32": -0.009061,
+              "onnx": "models/ablation/ablate_uncentred_s17_asymmetric.onnx"
+            },
+            "exclude_stem": {
+              "auroc": 0.901189,
+              "delta_vs_fp32": -0.000644,
+              "onnx": "models/ablation/ablate_uncentred_s17_exclude_stem.onnx"
+            },
+            "per_tensor_weights": {
+              "auroc": 0.900589,
+              "delta_vs_fp32": -0.001244,
+              "onnx": "models/ablation/ablate_uncentred_s17_per_tensor_weights.onnx"
+            }
+          }
+        }
+      }
+    },
+    {
+      "seed": 27,
+      "models": {
+        "centred": {
+          "onnx": "models/ablation/ablate_centred_s27_fp32.onnx",
+          "input": {
+            "mean": 0.5,
+            "scale": 2.0
+          },
+          "fp32_auroc": 0.888511,
+          "calibration_frames": 192,
+          "variants": {
+            "symmetric": {
+              "auroc": 0.885217,
+              "delta_vs_fp32": -0.003294,
+              "onnx": "models/ablation/ablate_centred_s27_symmetric.onnx"
+            },
+            "asymmetric": {
+              "auroc": 0.886439,
+              "delta_vs_fp32": -0.002072,
+              "onnx": "models/ablation/ablate_centred_s27_asymmetric.onnx"
+            },
+            "exclude_stem": {
+              "auroc": 0.887944,
+              "delta_vs_fp32": -0.000567,
+              "onnx": "models/ablation/ablate_centred_s27_exclude_stem.onnx"
+            },
+            "per_tensor_weights": {
+              "auroc": 0.883639,
+              "delta_vs_fp32": -0.004872,
+              "onnx": "models/ablation/ablate_centred_s27_per_tensor_weights.onnx"
+            }
+          }
+        },
+        "uncentred": {
+          "onnx": "models/ablation/ablate_uncentred_s27_fp32.onnx",
+          "input": {
+            "mean": 0.0,
+            "scale": 1.0
+          },
+          "fp32_auroc": 0.8664,
+          "calibration_frames": 192,
+          "variants": {
+            "symmetric": {
+              "auroc": 0.589478,
+              "delta_vs_fp32": -0.276922,
+              "onnx": "models/ablation/ablate_uncentred_s27_symmetric.onnx"
+            },
+            "asymmetric": {
+              "auroc": 0.902078,
+              "delta_vs_fp32": 0.035678,
+              "onnx": "models/ablation/ablate_uncentred_s27_asymmetric.onnx"
+            },
+            "exclude_stem": {
+              "auroc": 0.87985,
+              "delta_vs_fp32": 0.01345,
+              "onnx": "models/ablation/ablate_uncentred_s27_exclude_stem.onnx"
+            },
+            "per_tensor_weights": {
+              "auroc": 0.881822,
+              "delta_vs_fp32": 0.015422,
+              "onnx": "models/ablation/ablate_uncentred_s27_per_tensor_weights.onnx"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "models": {
+    "centred": {
+      "fp32_auroc": 0.888393,
+      "fp32_auroc_spread": 0.001055,
+      "input": {
+        "mean": 0.5,
+        "scale": 2.0
+      },
+      "seeds": 3,
+      "variants": {
+        "symmetric": {
+          "auroc": 0.886143,
+          "delta_vs_fp32": -0.00225,
+          "delta_spread": 0.002278,
+          "delta_per_seed": [
+            -0.004006,
+            0.00055,
+            -0.003294
+          ]
+        },
+        "asymmetric": {
+          "auroc": 0.890365,
+          "delta_vs_fp32": 0.001972,
+          "delta_spread": 0.004161,
+          "delta_per_seed": [
+            0.00625,
+            0.001739,
+            -0.002072
+          ]
+        },
+        "exclude_stem": {
+          "auroc": 0.886328,
+          "delta_vs_fp32": -0.002065,
+          "delta_spread": 0.001361,
+          "delta_per_seed": [
+            -0.002339,
+            -0.003289,
+            -0.000567
+          ]
+        },
+        "per_tensor_weights": {
+          "auroc": 0.886115,
+          "delta_vs_fp32": -0.002278,
+          "delta_spread": 0.002394,
+          "delta_per_seed": [
+            -8.4e-05,
+            -0.001878,
+            -0.004872
+          ]
+        }
+      }
+    },
+    "uncentred": {
+      "fp32_auroc": 0.885337,
+      "fp32_auroc_spread": 0.017717,
+      "input": {
+        "mean": 0.0,
+        "scale": 1.0
+      },
+      "seeds": 3,
+      "variants": {
+        "symmetric": {
+          "auroc": 0.729508,
+          "delta_vs_fp32": -0.155829,
+          "delta_spread": 0.117128,
+          "delta_per_seed": [
+            -0.1479,
+            -0.042666,
+            -0.276922
+          ]
+        },
+        "asymmetric": {
+          "auroc": 0.894659,
+          "delta_vs_fp32": 0.009322,
+          "delta_spread": 0.02237,
+          "delta_per_seed": [
+            0.00135,
+            -0.009061,
+            0.035678
+          ]
+        },
+        "exclude_stem": {
+          "auroc": 0.889907,
+          "delta_vs_fp32": 0.00457,
+          "delta_spread": 0.007047,
+          "delta_per_seed": [
+            0.000905,
+            -0.000644,
+            0.01345
+          ]
+        },
+        "per_tensor_weights": {
+          "auroc": 0.889989,
+          "delta_vs_fp32": 0.004652,
+          "delta_spread": 0.008333,
+          "delta_per_seed": [
+            -0.000222,
+            -0.001244,
+            0.015422
+          ]
+        }
+      }
+    }
+  },
+  "conclusion": "Over 3 seed(s), symmetric INT8 costs -0.1558 AUROC (spread 0.1171) on the [0, 1] model and -0.0022 (spread 0.0023) on the centred one -- a difference of 0.1536.  On the [0, 1] model, allowing zero points gives +0.0093 and excluding the stem convolution gives +0.0046; both recover most of the loss, which localises it to the input tensor rather than to the weights or the depth of the network."
+}

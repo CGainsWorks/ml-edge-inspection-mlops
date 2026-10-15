@@ -1,0 +1,127 @@
+# Dataset generation.
+#
+# `domains` is the part worth reading.  Each domain is a set of imaging
+# conditions, and each drifted domain is named after the thing that goes wrong
+# on a real inspection cell.  The training set is captured under `reference`;
+# everything else is a departure from it with a stated physical cause.
+#
+# The drifted domains are what makes the drift detector testable.  A detector
+# that has only ever been run on data it was calibrated on is untested code.
+
+seed: 20260822
+image_size: 256
+
+presets:
+  # What produced the published numbers.
+  full:
+    train: 1600
+    val: 400
+    test: 600
+  # The smallest split set that still exercises every stage.  CI runs this.
+  tiny:
+    train: 160
+    val: 60
+    test: 100
+
+domains:
+  # Nominal conditions: correct exposure, focused lens, clean optics, the
+  # surface finish the line was commissioned with.
+  reference:
+    gain: 1.0
+    offset: 0.0
+    blur_sigma: 0.6
+    noise_sigma: 0.020
+    grain_scale: 7.0
+    grain_strength: 0.16
+    ripple_strength: 0.05
+    ripple_period: 11.0
+    vignette: 0.06
+    defect_contrast: 0.30
+    defect_rate: 0.5
+
+  # THE PRIMARY DRIFT SCENARIO.
+  #
+  # An LED illuminator that has been on for eighteen months, and a lens that
+  # nobody has cleaned.  Output falls, so the frame darkens and the black level
+  # creeps up from the amplifier gain the camera applies to compensate; the
+  # extra gain raises read noise; the film on the front element softens the
+  # image.  Nothing here is a step change and nothing is visibly broken, which
+  # is why it is the interesting case: a human watching the line sees nothing.
+  #
+  # Note what is NOT set here: `defect_contrast`.  The first version of this
+  # domain lowered it to 0.21 as well as setting `gain` to 0.72 -- but the
+  # generator applies gain to the whole frame, defect included, so the defect
+  # was being dimmed twice.  Combined with the blur and the extra noise, that
+  # left the defects genuinely below the noise floor: a model trained directly
+  # on 1,200 frames of that domain reached only 0.72 AUROC, so no retraining
+  # could have recovered from it and the demonstration would have been of an
+  # unrecoverable fault rather than a drift.  Gain alone gives an effective
+  # defect contrast of 0.30 x 0.72 = 0.216, which is the physics.
+  lamp_ageing:
+    gain: 0.72
+    offset: 0.045
+    blur_sigma: 1.10
+    noise_sigma: 0.036
+
+  # A slower, milder version of the same failure, for the gradual-onset test.
+  # Used as the endpoint of a linear ramp rather than applied directly.
+  lamp_ageing_mild:
+    gain: 0.86
+    offset: 0.022
+    blur_sigma: 0.90
+    noise_sigma: 0.028
+    defect_contrast: 0.26
+
+  # A different cause with a different signature: the supplier changed the
+  # rolling process, so the surface texture is coarser and more contrasty while
+  # the optics and lighting are untouched.  Included because a monitor that
+  # only watches brightness would miss this entirely, and the texture-statistic
+  # rules in configs/drift.yaml exist to catch it.
+  material_batch:
+    grain_scale: 12.0
+    grain_strength: 0.24
+    ripple_strength: 0.09
+    ripple_period: 17.0
+
+  # A control.  Same physics as `reference`, different random draws, so the
+  # only difference is sampling noise.  The monitor must NOT fire on this.
+  # tests/test_drift.py asserts that it does not; without this domain the
+  # detector's alarm threshold is unfalsifiable.
+  reference_holdout:
+    gain: 1.0
+
+# Production streams the edge simulator replays.  Each is a sequence of frames
+# under one domain, or a ramp between two.
+streams:
+  clean:
+    domain: reference_holdout
+    frames: 900
+    defect_rate: 0.08          # a real line is mostly good parts
+  drifted:
+    domain: reference_holdout
+    to: lamp_ageing
+    ramp_start: 200            # frames of normal operation before onset
+    ramp_end: 600              # fully drifted by here, then held
+    frames: 1200
+    defect_rate: 0.08
+  # Steady state AFTER the lamp has aged: no ramp, the new normal.
+  #
+  # This is what the line looks like once the drift has finished happening, and
+  # it is what the reference window must be recaptured under after a
+  # drift-triggered redeployment.  Capturing the new reference under `clean`
+  # instead -- the conditions that no longer exist -- guarantees the monitor
+  # keeps firing forever on a model that has already adapted, which is how a
+  # monitor gets switched off.  scripts/deploy.py takes --stream for this.
+  post_drift:
+    domain: lamp_ageing
+    frames: 600
+    defect_rate: 0.08
+    seed: 4242
+
+  material:
+    domain: reference_holdout
+    to: material_batch
+    ramp_start: 100
+    ramp_end: 300
+    frames: 800
+    defect_rate: 0.08

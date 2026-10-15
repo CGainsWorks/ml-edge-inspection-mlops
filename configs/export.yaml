@@ -1,0 +1,29 @@
+# ONNX export and TensorRT build.
+
+onnx:
+  opset: 17            # what TensorRT 10 and ONNX Runtime 1.18 both parse unaided
+  dynamic_batch: true
+  dynamic_size: false  # a bolted-down camera does not change resolution
+  input_size: 256
+  # The exported graph is checked against the torch model it came from before
+  # anything downstream touches it.  Batch-norm folding and constant folding
+  # both change numerics quietly, and the first symptom is a miscalibrated INT8
+  # graph rather than an export error.
+  verify: true
+  verify_tolerance: 1.0e-4
+
+quantise:
+  calibration_frames: 192
+  calibration_split: train
+  calibration_defect_fraction: 0.5
+  per_channel: true
+  methods: [minmax, percentile]
+
+tensorrt:
+  # NEVER RUN.  No Jetson was available; see docs/jetson.md.
+  precisions: [fp32, fp16, int8]
+  workspace_gb: 2.0
+  batch:
+    min: 1
+    opt: 1
+    max: 8

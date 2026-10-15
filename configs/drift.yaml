@@ -1,0 +1,89 @@
+# The drift policy.
+#
+# Rules are statistical tests against the reference window frozen at deployment.
+# `trigger` is what turns a set of firing rules into a retraining run.
+#
+# Thresholds were not guessed.  They were set by running the monitor against the
+# `clean` control stream -- same imaging conditions as the reference, different
+# random draws -- and requiring zero triggers, then checked against the
+# `drifted` stream and required to fire.  `make drift-calibrate` reproduces
+# that; docs/drift.md records what the control stream's statistics actually
+# reach, which is the headroom these thresholds sit above.
+
+window: 200          # frames compared against the reference in one evaluation
+stride: 50           # how often an evaluation runs, in frames
+                     # at 30 fps that is an evaluation every 1.7 s over a 6.7 s window
+
+trigger:
+  # Two independent alarms, or four warnings.  One alarm is not enough: with
+  # eight rules over a 200-frame window, a single rule crossing its alarm line
+  # once in a long run is ordinary, and a monitor that retrains on it retrains
+  # constantly and gets switched off.
+  min_alarms: 2
+  min_warns: 4
+  # After a trigger, suppress the next two evaluations.  The drift is still
+  # there while the retraining runs, and without this the same event fires
+  # every stride until the new model is deployed.
+  cooldown_windows: 2
+
+rules:
+  # -- Illumination and optics ------------------------------------------
+  # PSI at the conventional 0.1 / 0.25 thresholds.  These catch the lamp-ageing
+  # scenario: the frame darkens and softens.
+  - detector: psi
+    signal: brightness
+    warn: 0.10
+    alarm: 0.25
+  - detector: psi
+    signal: sharpness
+    warn: 0.10
+    alarm: 0.25
+  - detector: psi
+    signal: contrast
+    warn: 0.10
+    alarm: 0.25
+
+  # Standardised mean shift, in reference standard deviations.  Redundant with
+  # PSI by design: PSI says the distribution moved, this says by how much and
+  # in which direction, and the alert text needs both.
+  - detector: mean_shift
+    signal: brightness
+    warn: 1.0
+    alarm: 2.0
+  - detector: mean_shift
+    signal: sharpness
+    warn: 1.0
+    alarm: 2.0
+
+  # Sensor noise.  Rises when the camera compensates for a dimmer scene with
+  # gain, which is the mechanism that makes a naive focus measure go the wrong
+  # way; see the module docstring of edgeinspect/monitoring/features.py.
+  - detector: psi
+    signal: noise_level
+    warn: 0.10
+    alarm: 0.25
+
+  # -- Surface texture ---------------------------------------------------
+  # The material_batch scenario changes the surface finish without touching
+  # the optics.  Brightness barely moves; this is what catches it.
+  - detector: psi
+    signal: texture_scale
+    warn: 0.10
+    alarm: 0.25
+  - detector: psi
+    signal: edge_density
+    warn: 0.10
+    alarm: 0.25
+
+  # -- The model's own output -------------------------------------------
+  # Unlabelled proxies.  No ground truth exists in production, so the score
+  # distribution and the flagged rate are the only direct evidence that the
+  # model's behaviour has changed rather than its input.
+  - detector: ks
+    signal: score
+    warn: 0.15
+    alarm: 0.25
+  - detector: rate_shift
+    signal: decision
+    warn: 2.5          # z, roughly p < 0.012
+    alarm: 3.5         # z, roughly p < 0.0005

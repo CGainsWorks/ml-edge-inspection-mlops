@@ -1,0 +1,346 @@
+{
+  "host": {
+    "platform": "Windows-11-10.0.26200-SP0",
+    "processor": "AMD64 Family 25 Model 33 Stepping 2, AuthenticAMD",
+    "machine": "AMD64",
+    "python": "3.12.0",
+    "onnxruntime": "1.29.0",
+    "available_providers": [
+      "AzureExecutionProvider",
+      "CPUExecutionProvider"
+    ],
+    "cpu_count": 16
+  },
+  "intra_op_threads": 4,
+  "iterations": 300,
+  "warmup": 30,
+  "split": "test",
+  "jetson": false,
+  "note": "Measured on the host described above, not on a Jetson.  No Jetson was available for this project; see docs/jetson.md.",
+  "rows": [
+    {
+      "variant": "fp32",
+      "precision": "fp32",
+      "model": "models/surface_defect_fp32.onnx",
+      "bytes": 390903,
+      "providers": [
+        "CPUExecutionProvider"
+      ],
+      "batch_size": 1,
+      "iterations": 300,
+      "latency_ms": {
+        "mean": 1.1407,
+        "std": 0.3541,
+        "p50": 1.0584,
+        "p95": 1.8486,
+        "p99": 2.2626,
+        "min": 0.5922,
+        "max": 3.1683
+      },
+      "throughput_fps": 876.65
+    },
+    {
+      "variant": "fp32",
+      "precision": "fp32",
+      "model": "models/surface_defect_fp32.onnx",
+      "bytes": 390903,
+      "providers": [
+        "CPUExecutionProvider"
+      ],
+      "batch_size": 4,
+      "iterations": 300,
+      "latency_ms": {
+        "mean": 4.7941,
+        "std": 1.2127,
+        "p50": 4.5992,
+        "p95": 6.8707,
+        "p99": 10.5377,
+        "min": 3.0989,
+        "max": 12.2091
+      },
+      "throughput_fps": 834.36
+    },
+    {
+      "variant": "fp32",
+      "precision": "fp32",
+      "model": "models/surface_defect_fp32.onnx",
+      "bytes": 390903,
+      "providers": [
+        "CPUExecutionProvider"
+      ],
+      "batch_size": 8,
+      "iterations": 300,
+      "latency_ms": {
+        "mean": 9.2499,
+        "std": 1.4186,
+        "p50": 9.0672,
+        "p95": 11.9464,
+        "p99": 13.4657,
+        "min": 6.4806,
+        "max": 14.0911
+      },
+      "throughput_fps": 864.87
+    },
+    {
+      "variant": "int8",
+      "precision": "int8",
+      "model": "models/surface_defect_int8.onnx",
+      "bytes": 113424,
+      "providers": [
+        "CPUExecutionProvider"
+      ],
+      "batch_size": 1,
+      "iterations": 300,
+      "latency_ms": {
+        "mean": 1.404,
+        "std": 1.4366,
+        "p50": 1.2344,
+        "p95": 1.8134,
+        "p99": 2.5439,
+        "min": 0.8904,
+        "max": 25.1406
+      },
+      "throughput_fps": 712.25
+    },
+    {
+      "variant": "int8",
+      "precision": "int8",
+      "model": "models/surface_defect_int8.onnx",
+      "bytes": 113424,
+      "providers": [
+        "CPUExecutionProvider"
+      ],
+      "batch_size": 4,
+      "iterations": 300,
+      "latency_ms": {
+        "mean": 5.1074,
+        "std": 0.8293,
+        "p50": 4.985,
+        "p95": 6.2598,
+        "p99": 8.6206,
+        "min": 3.5793,
+        "max": 9.76
+      },
+      "throughput_fps": 783.18
+    },
+    {
+      "variant": "int8",
+      "precision": "int8",
+      "model": "models/surface_defect_int8.onnx",
+      "bytes": 113424,
+      "providers": [
+        "CPUExecutionProvider"
+      ],
+      "batch_size": 8,
+      "iterations": 300,
+      "latency_ms": {
+        "mean": 9.9991,
+        "std": 1.5819,
+        "p50": 9.6196,
+        "p95": 12.4231,
+        "p99": 14.445,
+        "min": 7.94,
+        "max": 23.3415
+      },
+      "throughput_fps": 800.07
+    },
+    {
+      "variant": "int8_percentile",
+      "precision": "int8",
+      "model": "models/surface_defect_int8_percentile.onnx",
+      "bytes": 113424,
+      "providers": [
+        "CPUExecutionProvider"
+      ],
+      "batch_size": 1,
+      "iterations": 300,
+      "latency_ms": {
+        "mean": 1.2895,
+        "std": 0.3086,
+        "p50": 1.1926,
+        "p95": 1.7732,
+        "p99": 2.5373,
+        "min": 0.8603,
+        "max": 3.5853
+      },
+      "throughput_fps": 775.49
+    },
+    {
+      "variant": "int8_percentile",
+      "precision": "int8",
+      "model": "models/surface_defect_int8_percentile.onnx",
+      "bytes": 113424,
+      "providers": [
+        "CPUExecutionProvider"
+      ],
+      "batch_size": 4,
+      "iterations": 300,
+      "latency_ms": {
+        "mean": 5.8439,
+        "std": 1.5173,
+        "p50": 5.4908,
+        "p95": 8.5669,
+        "p99": 12.018,
+        "min": 3.7343,
+        "max": 13.6645
+      },
+      "throughput_fps": 684.47
+    },
+    {
+      "variant": "int8_percentile",
+      "precision": "int8",
+      "model": "models/surface_defect_int8_percentile.onnx",
+      "bytes": 113424,
+      "providers": [
+        "CPUExecutionProvider"
+      ],
+      "batch_size": 8,
+      "iterations": 300,
+      "latency_ms": {
+        "mean": 11.4874,
+        "std": 3.0391,
+        "p50": 10.7607,
+        "p95": 14.6923,
+        "p99": 24.3228,
+        "min": 8.5825,
+        "max": 38.2498
+      },
+      "throughput_fps": 696.42
+    },
+    {
+      "variant": "int8_keephead",
+      "precision": "int8",
+      "model": "models/surface_defect_int8_keephead.onnx",
+      "bytes": 112792,
+      "providers": [
+        "CPUExecutionProvider"
+      ],
+      "batch_size": 1,
+      "iterations": 300,
+      "latency_ms": {
+        "mean": 1.2428,
+        "std": 0.2103,
+        "p50": 1.1896,
+        "p95": 1.6433,
+        "p99": 1.9528,
+        "min": 0.8387,
+        "max": 2.6023
+      },
+      "throughput_fps": 804.63
+    },
+    {
+      "variant": "int8_keephead",
+      "precision": "int8",
+      "model": "models/surface_defect_int8_keephead.onnx",
+      "bytes": 112792,
+      "providers": [
+        "CPUExecutionProvider"
+      ],
+      "batch_size": 4,
+      "iterations": 300,
+      "latency_ms": {
+        "mean": 5.3833,
+        "std": 1.0245,
+        "p50": 5.1152,
+        "p95": 7.2878,
+        "p99": 9.5898,
+        "min": 4.1713,
+        "max": 11.3329
+      },
+      "throughput_fps": 743.04
+    },
+    {
+      "variant": "int8_keephead",
+      "precision": "int8",
+      "model": "models/surface_defect_int8_keephead.onnx",
+      "bytes": 112792,
+      "providers": [
+        "CPUExecutionProvider"
+      ],
+      "batch_size": 8,
+      "iterations": 300,
+      "latency_ms": {
+        "mean": 11.6271,
+        "std": 3.0322,
+        "p50": 10.7936,
+        "p95": 17.0838,
+        "p99": 22.5364,
+        "min": 8.0728,
+        "max": 34.9399
+      },
+      "throughput_fps": 688.05
+    },
+    {
+      "variant": "qat_int8",
+      "precision": "int8",
+      "model": "models/surface_defect_qat_int8.onnx",
+      "bytes": 113424,
+      "providers": [
+        "CPUExecutionProvider"
+      ],
+      "batch_size": 1,
+      "iterations": 300,
+      "latency_ms": {
+        "mean": 1.4167,
+        "std": 0.3498,
+        "p50": 1.3159,
+        "p95": 2.125,
+        "p99": 2.7491,
+        "min": 0.9125,
+        "max": 3.3403
+      },
+      "throughput_fps": 705.87
+    },
+    {
+      "variant": "qat_int8",
+      "precision": "int8",
+      "model": "models/surface_defect_qat_int8.onnx",
+      "bytes": 113424,
+      "providers": [
+        "CPUExecutionProvider"
+      ],
+      "batch_size": 4,
+      "iterations": 300,
+      "latency_ms": {
+        "mean": 5.9571,
+        "std": 2.3909,
+        "p50": 5.5349,
+        "p95": 8.492,
+        "p99": 11.9044,
+        "min": 3.8263,
+        "max": 37.1546
+      },
+      "throughput_fps": 671.47
+    },
+    {
+      "variant": "qat_int8",
+      "precision": "int8",
+      "model": "models/surface_defect_qat_int8.onnx",
+      "bytes": 113424,
+      "providers": [
+        "CPUExecutionProvider"
+      ],
+      "batch_size": 8,
+      "iterations": 300,
+      "latency_ms": {
+        "mean": 11.5766,
+        "std": 3.1362,
+        "p50": 11.0236,
+        "p95": 15.5205,
+        "p99": 22.3197,
+        "min": 8.6243,
+        "max": 40.7207
+      },
+      "throughput_fps": 691.05
+    }
+  ],
+  "features_ms": {
+    "mean": 2.1849,
+    "std": 0.4065,
+    "p50": 2.157,
+    "p95": 2.8104,
+    "p99": 3.5009,
+    "min": 1.1672,
+    "max": 4.3543
+  }
+}

@@ -1,0 +1,162 @@
+name: drift-watch
+
+# Re-sampling the false-alarm rate.
+#
+# `ci.yml` asserts that the monitor does not fire on one control stream.  That
+# is necessary and it is not a false-alarm *rate*: zero triggers in one run of
+# three windows is consistent with a per-window false-alarm rate of several
+# percent, and docs/limitations.md says so.
+#
+# This workflow runs the control stream under several different random seeds and
+# requires zero triggers across all of them, so the evidence accumulates instead
+# of being re-asserted.  It also runs the drifted stream in the same job, so a
+# threshold change that quietens the monitor into uselessness fails here too --
+# a detector tested in only one direction is half tested.
+#
+# Weekly rather than per-push, because that is where the value is: thresholds do
+# not change between pushes, and this costs about eight minutes a week against a
+# monthly budget.  `workflow_dispatch` is there for after a threshold change,
+# which is the one time it is worth running on demand.
+
+on:
+  schedule:
+    # 04:17 on Mondays.  Off the hour on purpose: scheduled workflows queue
+    # behind everyone else's on the hour, and a queued job can be dropped
+    # entirely on a busy morning.
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+    inputs:
+      seeds:
+        description: "How many control-stream seeds to test"
+        required: false
+        default: "6"
+
+concurrency:
+  group: drift-watch
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: src
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PIP_PROGRESS_BAR: "off"
+
+jobs:
+  false-alarms:
+    name: the monitor stays quiet across ${{ inputs.seeds || 6 }} control streams
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-train.txt
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-train.txt \
+            --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Build the artefacts the monitor needs
+        run: |
+          python scripts/make_dataset.py --preset tiny --root data/processed
+          python scripts/train.py --data-root data/processed --name surface_defect \
+            --epochs 14 --device cpu --no-mlflow
+          python scripts/export_onnx.py --weights models/surface_defect.pt
+          python scripts/quantise.py --model models/surface_defect_fp32.onnx --frames 96
+          python scripts/evaluate.py --skip-missing \
+            --models models/surface_defect_fp32.onnx models/surface_defect_int8.onnx \
+            --out results/accuracy.json
+
+      - name: Deploy, which captures the reference window
+        run: |
+          python scripts/deploy.py register \
+            --models models/surface_defect_fp32.onnx models/surface_defect_int8.onnx \
+            --checkpoint models/surface_defect.pt --accuracy results/accuracy.json \
+            --reason "drift-watch"
+          python scripts/deploy.py promote --version 1 --reason "drift-watch" --no-canary
+
+      # Each seed is a different draw from the SAME distribution the reference
+      # was captured from, so every trigger is a false alarm.  The loop keeps
+      # going after a failure and reports the total, because "one seed in six"
+      # and "six seeds in six" are different problems.
+      - name: Control streams -- every trigger here is a false alarm
+        run: |
+          SEEDS="${{ inputs.seeds || 6 }}"
+          FAILED=0
+          for i in $(seq 1 "$SEEDS"); do
+            SEED=$((7000 + i * 101))
+            echo "::group::control stream, seed $SEED"
+            python scripts/simulate_edge.py --stream clean --frames 600 --seed "$SEED" \
+              --telemetry "artifacts/telemetry/control_$SEED.jsonl" \
+              --out "results/edge_control_$SEED.json" --quiet
+            if python scripts/detect_drift.py \
+                 --telemetry "artifacts/telemetry/control_$SEED.jsonl" \
+                 --expect-no-trigger --quiet \
+                 --out "results/drift_control_$SEED.json"; then
+              echo "seed $SEED: quiet"
+            else
+              echo "::error::seed $SEED produced a FALSE ALARM"
+              FAILED=$((FAILED + 1))
+            fi
+            echo "::endgroup::"
+          done
+          echo "false alarms: $FAILED of $SEEDS control streams"
+          test "$FAILED" -eq 0
+
+      # The other direction.  Thresholds loose enough to never false-alarm are
+      # also loose enough to never fire, and that failure is silent.
+      - name: The drifted stream must still fire
+        run: |
+          python scripts/simulate_edge.py --stream drifted --frames 900 --quiet \
+            --out results/edge_drifted.json
+          python scripts/detect_drift.py --telemetry artifacts/telemetry/drifted.jsonl \
+            --expect-trigger --out results/drift_drifted.json --quiet
+
+      # Written to the run summary rather than only the log: the whole point of
+      # this workflow is the accumulating table, and a log line scrolls away.
+      - name: Summary
+        if: always()
+        run: |
+          python - >> "$GITHUB_STEP_SUMMARY" <<'PYTHON'
+          import glob
+          import json
+
+          rows = []
+          for path in sorted(glob.glob("results/drift_control_*.json")):
+              with open(path, encoding="utf-8") as handle:
+                  report = json.load(handle)
+              fired = sum(1 for w in report["windows"] if w["triggered"])
+              rows.append((path.split("_")[-1].removesuffix(".json"),
+                           report["frames"], len(report["windows"]), fired))
+          print("## Control-stream false alarms")
+          print()
+          print("| seed | frames | windows | triggered |")
+          print("|---|---:|---:|---:|")
+          for seed, frames, windows, fired in rows:
+              print("| {0} | {1} | {2} | {3} |".format(seed, frames, windows, fired))
+          total_windows = sum(r[2] for r in rows)
+          total_fired = sum(r[3] for r in rows)
+          print()
+          print("{0} window(s) evaluated, {1} triggered.".format(total_windows,
+                                                                 total_fired))
+          PYTHON
+
+      - name: Upload the reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: drift-watch-reports
+          path: results/drift_*.json
+          if-no-files-found: ignore
+          retention-days: 7

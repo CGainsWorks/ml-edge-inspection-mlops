@@ -1,0 +1,38 @@
+# Jetson benchmark configuration.
+#
+# NEVER RUN.  No Jetson was available for this project; no row in
+# benchmarks/results.csv came from this file.  docs/jetson.md is explicit about
+# what that means for every Jetson-shaped claim in this repository.
+#
+# Kept because it is the configuration a bring-up would use, and because the
+# differences from configs/benchmark.yaml are the interesting part:
+#
+#   * the variants are `.engine` plans, not `.onnx` graphs, so the backend is
+#     TensorRT rather than ONNX Runtime;
+#   * FP16 appears, because it only means something on a device with fast half
+#     precision -- on the development CPU it would be a slower FP32;
+#   * more iterations, because a Jetson under a sustained load throttles, and a
+#     300-iteration run finishes before the thermal behaviour shows up.
+
+iterations: 500
+warmup: 100
+batch_sizes: [1, 2, 4, 8]
+intra_op_threads: null      # not applicable: the engine owns its own execution
+
+variants:
+  - name: trt_fp32
+    model: models/surface_defect_fp32.engine
+    backend: tensorrt
+  - name: trt_fp16
+    model: models/surface_defect_fp16.engine
+    backend: tensorrt
+  - name: trt_int8
+    model: models/surface_defect_int8.engine
+    backend: tensorrt
+  # The portable fallback, for the comparison that matters on the device: how
+  # much the engine build is actually worth over the runtime that needs no build
+  # step.  A TensorRT number with no ONNX Runtime GPU number next to it does not
+  # say whether the engine was worth its build time and its version lock-in.
+  - name: ort_gpu_fp32
+    model: models/surface_defect_fp32.onnx
+    providers: [CUDAExecutionProvider]

@@ -1,0 +1,294 @@
+name: ci
+
+# What CI does here, and what it deliberately does not.
+#
+# It runs everything that needs neither a GPU nor a Jetson: linting, the whole
+# test suite, the dataset generator including its determinism check, a real
+# training run, the ONNX export with its numerical verification against the
+# checkpoint, post-training quantisation on a real calibration set, the accuracy
+# comparison across precisions, and -- the part worth noticing -- the *entire
+# operational loop*: deploy, run a clean stream and assert the monitor stays
+# quiet, run a drifted stream and assert it fires, retrain from what the device
+# captured, put the candidate through the gate, redeploy, and roll back.
+#
+# That is possible because the model is 61k parameters and trains on CPU in
+# about a minute.  Keeping it that small was a deliberate trade: this project's
+# claim is about the loop, and a loop that can only be exercised on a GPU is a
+# loop that does not get exercised.
+#
+# It does NOT run TensorRT, because GitHub's runners have no NVIDIA GPU and
+# because the target is a Jetson that does not exist.  Nothing in
+# results/published/ came from TensorRT and docs/jetson.md says so.  The
+# engine-plan step runs the TensorRT planner in dry-run mode, which is the most
+# that can honestly be checked here.
+#
+# ---------------------------------------------------------------------------
+# Written to be cheap, because the account running it has a monthly minute
+# budget.  Five decisions, in order of how much each saves:
+#
+#   1. ONE job does the whole pipeline.  Splitting lint, tests, the loop and the
+#      docs check across four jobs re-does checkout, Python setup and a ~200 MB
+#      torch install four times -- roughly three minutes of pure overhead per
+#      push, for no extra coverage.
+#   2. The Docker build is NOT on every push.  Building an image with buildx is
+#      the most expensive thing in here, and it can only break when the
+#      Dockerfile, the requirements or the runtime source change -- so that is
+#      exactly when it runs.
+#   3. The second Python version runs lint plus the dataset-free tests only.
+#      The point of it is "does the package work on the floor version", and that
+#      does not need a second training run to answer.
+#   4. `timeout-minutes` on every job.  A hung step otherwise runs to GitHub's
+#      six-hour default, and six hours is a fifth of a free month's budget spent
+#      on one mistake.  This is the single most important line in the file.
+#   5. Artifacts are uploaded only when something fails, with a short retention.
+#      A green run needs no evidence, and artifact storage is also a quota.
+#
+# Expected cost: about eight minutes of runner time per push, plus three for
+# the compatibility job.
+# ---------------------------------------------------------------------------
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# One run per branch; a new push cancels the previous run rather than paying for
+# both.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Read-only: nothing here publishes, comments or pushes.
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: src
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  # Keep pip quiet: progress bars are thousands of useless log lines, and the
+  # log is also storage.
+  PIP_PROGRESS_BAR: "off"
+
+jobs:
+  # ===========================================================================
+  # Everything, in one job, on one install.
+  # ===========================================================================
+  pipeline:
+    name: lint, tests, and the whole operational loop
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-train.txt
+
+      # CPU torch from the PyTorch index.  The default PyPI wheel pulls the
+      # whole CUDA runtime -- about 2.5 GB that no runner here can use.
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-train.txt \
+            --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Lint
+        run: python -m flake8 src/ tests/ scripts/ pipelines/
+
+      # Fails on a NumPy or SciPy upgrade that changes the generator's output,
+      # which would silently invalidate every published number.
+      - name: Dataset, with the determinism check
+        run: python scripts/make_dataset.py --preset tiny --root data/processed --verify 5
+
+      - name: Tests
+        run: python -m pytest tests/ -q --durations=10
+
+      - name: Train
+        run: |
+          python scripts/train.py --data-root data/processed --name surface_defect \
+            --epochs 14 --device cpu --no-mlflow
+
+      - name: Export to ONNX, verified against the checkpoint
+        run: python scripts/export_onnx.py --weights models/surface_defect.pt
+
+      - name: Post-training quantisation
+        run: python scripts/quantise.py --model models/surface_defect_fp32.onnx --frames 96
+
+      - name: Accuracy across precisions
+        run: |
+          python scripts/evaluate.py --skip-missing \
+            --models models/surface_defect_fp32.onnx \
+                     models/surface_defect_int8.onnx \
+                     models/surface_defect_int8_percentile.onnx \
+                     models/surface_defect_int8_keephead.onnx \
+            --out results/accuracy.json
+
+      # The whole point of the repository.  This asserts, in order: the monitor
+      # does NOT fire on the control stream; it DOES fire on the drifted one;
+      # the retraining pipeline runs; the gate reaches a decision; the monitor
+      # goes quiet under the new normal; and rollback puts the previous version
+      # back on the device.  A non-zero exit means one of those failed.
+      - name: The operational loop
+        run: python scripts/run_loop.py --quick --fresh --no-mlflow
+
+      - name: The TensorRT plan (dry run; there is no GPU here)
+        run: python scripts/export_tensorrt.py --onnx models/surface_defect_fp32.onnx --dry-run
+
+      # Regenerates every table embedded in the documentation from
+      # results/published/ and compares, then scans the prose for decimals that
+      # appear in no published result.  Stale numbers in sentences are how
+      # documentation actually rots: tables get regenerated, paragraphs do not.
+      - name: Every number in the docs traces to a published result
+        run: python scripts/check_docs.py
+
+      - name: Registry and deployment record
+        if: failure()
+        run: |
+          python scripts/deploy.py status || true
+          python scripts/deploy.py history || true
+
+      # Only on failure: a green run needs no evidence, and artifact storage is
+      # a quota too.
+      - name: Upload the run record
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failure-record
+          path: |
+            results/*.json
+            artifacts/registry/registry.json
+            artifacts/deploy/history.jsonl
+            artifacts/retrain/*/manifest.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # ===========================================================================
+  # Does the package still work on the oldest Python it claims to support?
+  # Lint and the dataset-free tests answer that; a second training run does not
+  # add to the answer and does cost three more minutes.
+  # ===========================================================================
+  compat:
+    name: python 3.10 compatibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-train.txt
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-train.txt \
+            --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Lint
+        run: python -m flake8 src/ tests/ scripts/ pipelines/
+
+      - name: Tests that need neither a dataset nor weights
+        run: python -m pytest tests/ -q -m "not needs_dataset and not needs_model"
+
+  # ===========================================================================
+  # The runtime image, only when something that can affect it changes.
+  #
+  # The image's own build step imports the edge runtime and fails the build if
+  # torch or mlflow appear in sys.modules, so this job IS that assertion -- the
+  # runtime container is built without a training framework, and a stray import
+  # three modules deep would otherwise ship and fail on first start.
+  # ===========================================================================
+  runtime-image:
+    name: runtime image builds and has no training framework in it
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'pull_request' ||
+      github.event_name == 'push'
+
+    steps:
+      # Full history, because the diff below needs the base commit to exist and
+      # the default shallow checkout does not have it.  On a repository this
+      # size that is a fraction of a second.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Decided here rather than with a workflow-level path filter, so that a
+      # docs-only push shows this job as a green skip instead of leaving a
+      # required check pending forever.
+      #
+      # Every branch that cannot establish what changed builds anyway.  Skipping
+      # on uncertainty would mean a broken image shipping because a diff command
+      # failed, and a wasted build is much cheaper than that.
+      - name: Does anything in this change affect the image?
+        id: changed
+        run: |
+          set -u
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "manual run: building"
+            echo "build=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          BASE="${{ github.event.pull_request.base.sha || github.event.before }}"
+          EMPTY="0000000000000000000000000000000000000000"
+          if [ -z "$BASE" ] || [ "$BASE" = "$EMPTY" ]; then
+            echo "no usable base commit (new branch or first push): building"
+            echo "build=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if ! CHANGED=$(git diff --name-only "$BASE" HEAD 2>/dev/null); then
+            echo "could not diff against $BASE: building"
+            echo "build=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "changed files:"
+          echo "$CHANGED" | sed 's/^/  /'
+          if echo "$CHANGED" \
+               | grep -qE '^(docker/|requirements|src/|pyproject|configs/|scripts/)'; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "nothing that affects the image changed; skipping the build"
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: docker/setup-buildx-action@v3
+        if: steps.changed.outputs.build == 'true'
+
+      - name: Build
+        if: steps.changed.outputs.build == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.runtime
+          push: false
+          load: true
+          tags: edgeinspect:runtime
+          # min, not max: caching every intermediate layer of a pip install
+          # costs more to upload and restore than it saves, and the cache has a
+          # 10 GB limit that evicts the layers actually worth keeping.
+          cache-from: type=gha
+          cache-to: type=gha,mode=min
+
+      - name: Report the image size
+        if: steps.changed.outputs.build == 'true'
+        run: |
+          docker image inspect edgeinspect:runtime \
+            --format 'runtime image: {{.Size}} bytes'
